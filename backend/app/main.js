@@ -14,6 +14,7 @@ import dotenv from "dotenv";
 import fs from "fs";
 
 // Import route handlers
+import authRoute from "./routes/auth.route.js";
 import plannerRoute from "./routes/planner.route.js";
 import timetableRoute from "./routes/timeTable.route.js";
 import scheduleRoute from "./routes/schedule.route.js";
@@ -41,7 +42,7 @@ app.use(
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allowedHeaders: ["*"],
-  })
+  }),
 );
 
 // Add request logging to track API calls
@@ -65,6 +66,7 @@ if (!fs.existsSync(uploadsDir)) {
  * API Routes
  * All routes are prefixed with /api to keep the API organized
  */
+app.use("/api/auth", authRoute); // Authentication endpoints (signup, login, etc.)
 app.use("/api/planner", plannerRoute); // Study planner generation endpoints
 app.use("/api/timetable", timetableRoute); // Timetable management endpoints
 app.use("/api/schedule", scheduleRoute); // Schedule upload and parsing endpoints

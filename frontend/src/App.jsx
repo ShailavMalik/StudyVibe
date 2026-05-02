@@ -11,7 +11,7 @@ import BlogPost from "./pages/BlogPost.jsx";
 // Main app component with routing
 // Uses protected routes - you need to be logged in to see the dashboard
 function App() {
-  // Check if user is logged in (works for both Firebase and demo mode)
+  // Check if user is logged in (via MongoDB auth or demo mode)
   const { user } = useContext(AuthContext);
 
   return (

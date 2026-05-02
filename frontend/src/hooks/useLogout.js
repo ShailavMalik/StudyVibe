@@ -1,28 +1,48 @@
-import { getAuth, signOut } from "firebase/auth";
 import { useContext } from "react";
 import { AuthContext } from "../contexts/authContext";
-
-const auth = getAuth();
+import { api } from "../services/api";
 
 // Hook for logging out
-// Cleans up both Firebase auth and demo mode
+// Cleans up tokens and auth state
 const useLogout = () => {
-  const { setUser } = useContext(AuthContext);
+  const { logout: contextLogout } = useContext(AuthContext);
 
   const logout = async () => {
     try {
-      // Sign out from Firebase (if they were logged in)
-      await signOut(auth);
-      console.log("User signed out successfully");
+      const token = localStorage.getItem("studyvibe_token");
 
-      // Clean up any stored tokens or demo flags
-      localStorage.removeItem("token");
+      // Call logout endpoint if token exists
+      if (token) {
+        try {
+          await api.post(
+            "/api/auth/logout",
+            {},
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            },
+          );
+        } catch (error) {
+          // Continue logout even if server call fails
+          console.error("Error calling logout endpoint:", error);
+        }
+      }
+
+      // Clean up stored tokens and demo flags
+      localStorage.removeItem("studyvibe_token");
       localStorage.removeItem("studyvibe_demo");
 
-      // Clear user state
-      setUser(null);
+      // Clear user state from context
+      contextLogout();
+
+      console.log("User logged out successfully");
     } catch (error) {
-      console.error("Error signing out:", error);
+      console.error("Error logging out:", error);
+      // Clear state anyway
+      localStorage.removeItem("studyvibe_token");
+      localStorage.removeItem("studyvibe_demo");
+      contextLogout();
     }
   };
 

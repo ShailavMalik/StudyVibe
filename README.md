@@ -22,8 +22,8 @@ A smart study scheduler and planner powered by AI. StudyVibe helps students crea
 - **UI Components**: React Router, React Icons
 - **Calendar**: FullCalendar (React integration)
 - **Date Handling**: Day.js
-- **Authentication**: Firebase
-- **HTTP Client**: Custom API service layer
+- **Authentication**: MongoDB with JWT tokens
+- **HTTP Client**: Axios with interceptors
 
 ### Backend
 
@@ -74,8 +74,7 @@ study_vibe/
 │   │   │   ├── useSignup.js
 │   │   │   └── useSmartTimetable.js
 │   │   ├── services/                 # API and external services
-│   │   │   ├── api.js
-│   │   │   └── firebase.js
+│   │   │   └── api.js
 │   │   ├── contexts/                 # Context providers
 │   │   │   └── authContext.jsx
 │   │   ├── utils/                    # Utility functions
@@ -139,7 +138,6 @@ study_vibe/
 - MongoDB Atlas account (or local MongoDB)
 - Google Gemini API key
 - OpenAI API key
-- Firebase project setup
 
 ### Installation
 
@@ -170,6 +168,8 @@ study_vibe/
    PORT=3001
    NODE_ENV=development
    MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/studyvibe
+   JWT_SECRET=your_jwt_secret_key_here_change_in_production
+   JWT_EXPIRE=7d
    GOOGLE_API_KEY=your_gemini_api_key
    OPENAI_API_KEY=your_openai_api_key
    ```
@@ -200,6 +200,102 @@ This will start both frontend (http://localhost:5173) and backend (http://localh
 **GET** `/health`
 
 - Health check endpoint for monitoring services
+
+### Authentication
+
+**POST** `/api/auth/signup`
+
+- Register a new user account
+
+Request body:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "password123",
+  "confirmPassword": "password123",
+  "displayName": "John Doe"
+}
+```
+
+Response:
+
+```json
+{
+  "message": "User created successfully",
+  "user": {
+    "id": "user_id",
+    "email": "user@example.com",
+    "displayName": "John Doe",
+    "avatar": null
+  },
+  "token": "jwt_token_here"
+}
+```
+
+**POST** `/api/auth/login`
+
+- Login with email and password
+
+Request body:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+```
+
+Response:
+
+```json
+{
+  "message": "Login successful",
+  "user": {
+    "id": "user_id",
+    "email": "user@example.com",
+    "displayName": "John Doe",
+    "avatar": null
+  },
+  "token": "jwt_token_here"
+}
+```
+
+**POST** `/api/auth/logout`
+
+- Logout user (requires authentication)
+- Returns success message
+
+**GET** `/api/auth/me`
+
+- Get current authenticated user details (requires authentication)
+
+**PUT** `/api/auth/profile`
+
+- Update user profile (requires authentication)
+
+Request body:
+
+```json
+{
+  "displayName": "New Name",
+  "avatar": "url_to_avatar"
+}
+```
+
+**POST** `/api/auth/change-password`
+
+- Change user password (requires authentication)
+
+Request body:
+
+```json
+{
+  "oldPassword": "current_password",
+  "newPassword": "new_password",
+  "confirmPassword": "new_password"
+}
+```
 
 ### Study Planner
 
@@ -271,6 +367,22 @@ Request body:
 
 ## Database Models
 
+### User Model
+
+Stores user account information and authentication credentials.
+
+**Fields:**
+
+- `email` (String, required, unique) - User email address
+- `password` (String, required) - Hashed password (bcryptjs)
+- `displayName` (String, default) - User's display name
+- `avatar` (String, default) - Profile avatar URL
+- `isActive` (Boolean, default: true) - Account status
+- `emailVerified` (Boolean, default: false) - Email verification status
+- `lastLogin` (Date, default: null) - Last login timestamp
+- `createdAt` (Date) - Auto-generated timestamp
+- `updatedAt` (Date) - Auto-generated timestamp
+
 ### Subject Model
 
 Stores information about subjects the user needs to study.
@@ -314,6 +426,10 @@ API_VERSION=v1
 # Database
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/studyvibe
 
+# JWT Configuration
+JWT_SECRET=your_jwt_secret_key_here_change_in_production
+JWT_EXPIRE=7d
+
 # AI Services
 GOOGLE_API_KEY=your_gemini_api_key
 OPENAI_API_KEY=your_openai_api_key
@@ -324,7 +440,7 @@ CORS_ORIGIN=http://localhost:5173
 
 ### Frontend Configuration
 
-Configure Firebase in `src/services/firebase.js` with your Firebase project credentials.
+The frontend uses environment variables to configure the API connection. Update `frontend/.env` with your backend URL (default is `http://localhost:3001` for development).
 
 ## Development Guide
 
