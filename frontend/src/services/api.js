@@ -28,7 +28,12 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const requestUrl = error.config?.url || "";
+    const isAuthEntryPoint =
+      requestUrl.includes("/api/auth/login") ||
+      requestUrl.includes("/api/auth/signup");
+
+    if (error.response?.status === 401 && !isAuthEntryPoint) {
       // Token expired or invalid
       localStorage.removeItem("studyvibe_token");
       window.location.href = "/login";

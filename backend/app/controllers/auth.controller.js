@@ -8,17 +8,13 @@ import { generateToken } from "../utils/jwt.js";
  */
 export const signup = async (req, res) => {
   try {
-    const { email, password, confirmPassword, displayName } = req.body;
+    const { name, username, email, password, displayName } = req.body;
 
     // Validation
-    if (!email || !password || !confirmPassword) {
+    if (!name || !username || !email || !password) {
       return res
         .status(400)
         .json({ error: "Please fill in all required fields" });
-    }
-
-    if (password !== confirmPassword) {
-      return res.status(400).json({ error: "Passwords do not match" });
     }
 
     if (password.length < 6) {
@@ -27,10 +23,29 @@ export const signup = async (req, res) => {
         .json({ error: "Password must be at least 6 characters" });
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedUsername = username.toLowerCase().trim();
+    const resolvedName = (name || displayName || normalizedUsername).trim();
+
+    if (normalizedUsername.length < 3) {
+      return res
+        .status(400)
+        .json({ error: "Username must be at least 3 characters" });
+    }
+
     // Check if user already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    const existingUser = await User.findOne({
+      $or: [{ email: normalizedEmail }, { username: normalizedUsername }],
+    });
+
     if (existingUser) {
-      return res.status(409).json({ error: "Email already registered" });
+      if (existingUser.email === normalizedEmail) {
+        return res.status(409).json({ error: "Email already registered" });
+      }
+
+      if (existingUser.username === normalizedUsername) {
+        return res.status(409).json({ error: "Username already taken" });
+      }
     }
 
     // Hash password
@@ -39,9 +54,11 @@ export const signup = async (req, res) => {
 
     // Create new user
     const newUser = new User({
-      email: email.toLowerCase(),
+      username: normalizedUsername,
+      email: normalizedEmail,
       password: hashedPassword,
-      displayName: displayName || email.split("@")[0],
+      displayName: resolvedName,
+      notificationEmail: normalizedEmail,
     });
 
     await newUser.save();
@@ -52,9 +69,12 @@ export const signup = async (req, res) => {
     // Return user data (without password)
     const userResponse = {
       id: newUser._id,
+      username: newUser.username,
       email: newUser.email,
+      name: newUser.displayName,
       displayName: newUser.displayName,
       avatar: newUser.avatar,
+      notificationEmail: newUser.notificationEmail,
     };
 
     res.status(201).json({
@@ -63,6 +83,16 @@ export const signup = async (req, res) => {
       token,
     });
   } catch (error) {
+    if (error?.code === 11000) {
+      const duplicateField = Object.keys(error.keyValue || {})[0];
+      if (duplicateField === "username") {
+        return res.status(409).json({ error: "Username already taken" });
+      }
+      if (duplicateField === "email") {
+        return res.status(409).json({ error: "Email already registered" });
+      }
+    }
+
     console.error("Signup error:", error);
     res.status(500).json({ error: error.message });
   }
@@ -74,21 +104,24 @@ export const signup = async (req, res) => {
  */
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { username, password } = req.body;
+    const normalizedUsername = username?.toLowerCase().trim();
+    const normalizedPassword = password?.trim();
 
     // Validation
-    if (!email || !password) {
+    if (!normalizedUsername || !normalizedPassword) {
       return res
         .status(400)
-        .json({ error: "Please provide email and password" });
+        .json({ error: "Please provide username and password" });
     }
 
     // Check if user exists
-    const user = await User.findOne({ email: email.toLowerCase() }).select(
-      "+password",
-    );
+    const user = await User.findOne({
+      $or: [{ username: normalizedUsername }, { email: normalizedUsername }],
+    }).select("+password");
+
     if (!user) {
-      return res.status(401).json({ error: "Invalid email or password" });
+      return res.status(401).json({ error: "Invalid username or password" });
     }
 
     // Check if user is active
@@ -97,9 +130,12 @@ export const login = async (req, res) => {
     }
 
     // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(
+      normalizedPassword,
+      user.password,
+    );
     if (!isPasswordValid) {
-      return res.status(401).json({ error: "Invalid email or password" });
+      return res.status(401).json({ error: "Invalid username or password" });
     }
 
     // Update last login time
@@ -112,9 +148,12 @@ export const login = async (req, res) => {
     // Return user data (without password)
     const userResponse = {
       id: user._id,
+      username: user.username,
       email: user.email,
+      name: user.displayName,
       displayName: user.displayName,
       avatar: user.avatar,
+      notificationEmail: user.notificationEmail,
     };
 
     res.json({
@@ -144,10 +183,13 @@ export const getCurrentUser = async (req, res) => {
     res.json({
       user: {
         id: user._id,
+        username: user.username,
         email: user.email,
+        name: user.displayName,
         displayName: user.displayName,
         avatar: user.avatar,
         emailVerified: user.emailVerified,
+        notificationEmail: user.notificationEmail,
         createdAt: user.createdAt,
       },
     });
@@ -197,9 +239,12 @@ export const updateProfile = async (req, res) => {
       message: "Profile updated successfully",
       user: {
         id: user._id,
+        username: user.username,
         email: user.email,
+        name: user.displayName,
         displayName: user.displayName,
         avatar: user.avatar,
+        notificationEmail: user.notificationEmail,
       },
     });
   } catch (error) {

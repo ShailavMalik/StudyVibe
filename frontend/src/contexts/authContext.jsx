@@ -13,6 +13,8 @@ export function AuthProvider({ children }) {
   // without creating an account
   const createDemoUser = () => ({
     id: "demo-user",
+    username: "demo.user",
+    name: "Demo User",
     displayName: "Demo User",
     email: "demo@studyvibe.local",
     isAnonymous: true,

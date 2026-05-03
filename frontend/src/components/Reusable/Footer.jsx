@@ -18,7 +18,7 @@ const Footer = () => {
             href="https://shailavmalik.me"
             target="_blank"
             rel="noopener noreferrer">
-            VibeMinds
+            Shailav & Ritika
           </a>
           <span className="text-gray-400">•</span>
           <span className="text-xs text-gray-500">© {currentYear}</span>

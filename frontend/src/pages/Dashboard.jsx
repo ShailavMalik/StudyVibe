@@ -10,8 +10,11 @@ import MotivationalQuote from "../components/Reusable/MotivationalQuote";
 import AdvancedSchedulerForm from "../components/Planner/AdvancedSchedulerForm";
 import ProgressDashboard from "../components/Planner/ProgressDashboard";
 import AdvancedSubjectInput from "../components/Planner/AdvancedSubjectInput";
+import { useContext } from "react";
+import { AuthContext } from "../contexts/authContext";
 
 function Dashboard() {
+  const { user } = useContext(AuthContext);
   // Separate states for Quick Plan and Advanced Plan
   const [quickPlan, setQuickPlan] = useState(null);
   const [advancedPlan, setAdvancedPlan] = useState(null);
@@ -100,15 +103,14 @@ function Dashboard() {
     }
 
     // Use static algorithm for manual scheduling
-    const { generateAdvancedStaticPlan } = await import(
-      "../utils/advancedScheduler"
-    );
+    const { generateAdvancedStaticPlan } =
+      await import("../utils/advancedScheduler");
     const plan = generateAdvancedStaticPlan(
       advancedData.subjects,
       advancedData.schedule,
       advancedData.commitments,
       advancedData.preferences,
-      studyHoursAvailable
+      studyHoursAvailable,
     );
 
     setAdvancedPlan(plan);
@@ -118,11 +120,11 @@ function Dashboard() {
       localStorage.setItem("advancedPlanCache", JSON.stringify(plan));
       localStorage.setItem(
         "advancedPlanSubjects",
-        JSON.stringify(advancedData.subjects)
+        JSON.stringify(advancedData.subjects),
       );
       localStorage.setItem(
         "studyHoursAvailable",
-        studyHoursAvailable.toString()
+        studyHoursAvailable.toString(),
       );
       console.log("💾 Advanced Plan cached");
     }
@@ -136,7 +138,7 @@ function Dashboard() {
 
     if (
       confirm(
-        `Are you sure you want to clear your current ${planType}? This will also clear your progress tracking and reset all input forms.`
+        `Are you sure you want to clear your current ${planType}? This will also clear your progress tracking and reset all input forms.`,
       )
     ) {
       if (schedulerMode === "quick") {
@@ -180,6 +182,16 @@ function Dashboard() {
             tailored just for you.
           </p>
 
+          {user && (
+            <div className="mt-4 inline-flex items-center rounded-lg px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-500 text-white shadow-lg transform transition hover:scale-[1.02]">
+              <span className="mr-3 text-2xl">👋</span>
+              <div className="flex flex-col leading-tight">
+                <span className="text-xs opacity-90">Welcome</span>
+                <span className="font-semibold text-sm md:text-base">{user.name || user.displayName || user.email}</span>
+              </div>
+            </div>
+          )}
+
           {/* Motivational Quote - Changes on every refresh */}
           <div className="w-full max-w-4xl mb-10">
             <MotivationalQuote />
@@ -190,18 +202,18 @@ function Dashboard() {
             <button
               onClick={() => setSchedulerMode("quick")}
               className={`flex-1 min-w-0 h-14 sm:h-16 flex items-center justify-center rounded-lg font-semibold text-sm sm:text-base transition-all duration-300 ${
-                schedulerMode === "quick"
-                  ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-md"
-                  : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                schedulerMode === "quick" ?
+                  "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-md"
+                : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
               }`}>
               ⚡ Quick Plan
             </button>
             <button
               onClick={() => setSchedulerMode("advanced")}
               className={`flex-1 min-w-0 h-14 sm:h-16 flex flex-col items-center justify-center rounded-lg font-semibold text-xs sm:text-sm transition-all duration-300 leading-tight ${
-                schedulerMode === "advanced"
-                  ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-md"
-                  : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                schedulerMode === "advanced" ?
+                  "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-md"
+                : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
               }`}>
               <span className="flex items-center gap-1">
                 🎯 Advanced Scheduler
@@ -224,7 +236,7 @@ function Dashboard() {
       </div>
 
       {/* Conditional Rendering Based on Mode */}
-      {schedulerMode === "quick" ? (
+      {schedulerMode === "quick" ?
         <div className="flex items-stretch justify-stretch flex-col xl:items-start xl:flex-row">
           <div className="mt-8 pl-8 flex-1 flex-col items-center  flex">
             <SubjectForm onGenerate={handleGenerate} />
@@ -250,8 +262,7 @@ function Dashboard() {
             <StudyCalendar studyPlan={quickPlan} />
           </div>
         </div>
-      ) : (
-        <div className="mt-4 sm:mt-6 md:mt-8 px-2 sm:px-4 max-w-6xl mx-auto w-full overflow-x-hidden">
+      : <div className="mt-4 sm:mt-6 md:mt-8 px-2 sm:px-4 max-w-6xl mx-auto w-full overflow-x-hidden">
           {/* Step-by-step guide banner */}
           <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-xl">
             <h3 className="text-lg font-bold text-purple-900 mb-2">
@@ -301,7 +312,7 @@ function Dashboard() {
             </div>
           )}
         </div>
-      )}
+      }
 
       {/* Progress Dashboard - Shows for both modes when plan exists */}
       {((schedulerMode === "quick" && quickPlan) ||

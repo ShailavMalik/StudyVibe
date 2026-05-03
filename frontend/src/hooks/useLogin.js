@@ -9,13 +9,16 @@ const useLogin = () => {
   const [error, setError] = useState(null);
   const { setUser } = useContext(AuthContext);
 
-  const login = async (email, password) => {
+  const login = async (username, password) => {
     // Quick validation before we hit the server
-    const success = handleInputErrors(email, password);
+    const success = handleInputErrors(username, password);
     if (!success) {
-      setError("Please fill in all fields");
+      setError("Please enter your username and password.");
       return;
     }
+
+    const normalizedUsername = username.trim().toLowerCase();
+    const normalizedPassword = password.trim();
 
     setLoading(true);
     setError(null);
@@ -23,8 +26,8 @@ const useLogin = () => {
     try {
       // Call backend login endpoint
       const response = await api.post("/api/auth/login", {
-        email,
-        password,
+        username: normalizedUsername,
+        password: normalizedPassword,
       });
 
       if (response.data.token && response.data.user) {
@@ -38,8 +41,10 @@ const useLogin = () => {
         return response.data;
       }
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.error || "Login failed. Please try again.";
+      const errorMessage = getAuthErrorMessage(
+        error,
+        "Unable to log in right now. Please try again.",
+      );
       setError(errorMessage);
       console.error("Error logging in:", errorMessage);
     } finally {
@@ -53,11 +58,18 @@ const useLogin = () => {
 export default useLogin;
 
 // Simple validation helper
-function handleInputErrors(email, password) {
-  if (!email || !password) {
-    window.alert("Please fill in all fields");
+function handleInputErrors(username, password) {
+  if (!username || !password) {
     return false;
   }
 
   return true;
+}
+
+function getAuthErrorMessage(error, fallbackMessage) {
+  if (error?.code === "ERR_NETWORK" || !error?.response) {
+    return "Connection issue. Please check your internet or server and try again.";
+  }
+
+  return error.response?.data?.error || fallbackMessage;
 }

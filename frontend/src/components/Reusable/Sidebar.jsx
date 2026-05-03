@@ -3,6 +3,8 @@ import useLogout from "../../hooks/useLogout";
 import { Navigate } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import NotificationSettings from "./NotificationSettings";
+import { useContext } from "react";
+import { AuthContext } from "../../contexts/authContext";
 
 import {
   FaTachometerAlt,
@@ -17,6 +19,7 @@ const Sidebar = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const sidebarRef = useRef(null);
+  const { user } = useContext(AuthContext);
 
   // Close sidebar when clicking outside of it
   useEffect(() => {
@@ -88,7 +91,16 @@ const Sidebar = () => {
         }`}
         style={{ minWidth: isSidebarOpen ? "16rem" : "0" }}>
         <div className="p-6 flex items-center justify-center border-b border-base-300">
-          <span className="text-xl font-bold text-primary">Smart Planner</span>
+          <div className="flex flex-col items-center">
+            <span className="text-xl font-bold text-primary">
+              Smart Planner
+            </span>
+            {user && (
+              <span className="text-sm text-gray-600 mt-2">
+                Welcome, {user.name || user.displayName || user.email}
+              </span>
+            )}
+          </div>
         </div>
         <nav className="flex-1 px-4 py-8 space-y-4">
           <button

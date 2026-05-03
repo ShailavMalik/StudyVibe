@@ -23,7 +23,7 @@ import scheduleRoute from "./routes/schedule.route.js";
 import LoggingMiddleware from "./middleware/logging.js";
 
 // Uncomment when MongoDB integration is needed
-// import connectToMongoDB from "./db/connectToMongoDB.js";
+import connectToMongoDB from "./db/connectToMongoDB.js";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -116,7 +116,7 @@ app.listen(PORT, () => {
   console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
 
   // Connect to MongoDB when ready
-  // connectToMongoDB();
+  connectToMongoDB();
 
   if (process.env.NODE_ENV === "development") {
     console.log(`🔗 Local URL: http://localhost:${PORT}`);

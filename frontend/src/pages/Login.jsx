@@ -1,31 +1,21 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import useLogin from "../hooks/useLogin";
 import Footer from "../components/Reusable/Footer";
-import { useContext } from "react";
-import { AuthContext } from "../contexts/authContext";
 
-// Login page with email/password and demo mode option
+// Login page with username/password
 const Login = () => {
   // Form state
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   // Get login function and loading state from hook
-  const { loading, login } = useLogin();
-  const { loginAsDemo } = useContext(AuthContext);
-  const navigate = useNavigate();
+  const { loading, login, error } = useLogin();
 
   // Handle regular login
   const handleSubmit = async (e) => {
     e.preventDefault();
-    await login(email, password);
-  };
-
-  // Handle demo mode (no account needed!)
-  const handleDemo = () => {
-    loginAsDemo();
-    navigate("/");
+    await login(username, password);
   };
 
   return (
@@ -35,20 +25,26 @@ const Login = () => {
           <div className="max-w-lg p-6 rounded-xl shadow-lg border-t-sky-100 bg-gradient-to-br from-cyan-200 via-blue-300 to-purple-300 border-t-2  bg-sly-blue-600 bg-clip-padding backdrop-filter backdrop-blur-lg bg-opacity-20">
             <h1 className="text-3xl  font-semibold text-center text-gray-500">
               Login
-              <span className="text-blue-500"> Study Planner</span>
+              <span className="text-blue-500"> Study-Vibe</span>
             </h1>
+
+            {error && (
+              <div className="text-sm text-red-700 bg-red-100 rounded p-2 mb-3">
+                {error}
+              </div>
+            )}
 
             <form onSubmit={handleSubmit}>
               <div>
                 <label className="label mt-3 flex pl-2">
-                  <span className="text-base label-text">Email</span>
+                  <span className="text-base label-text">Username</span>
                 </label>
                 <input
                   type="text"
-                  placeholder="Enter email"
+                  placeholder="Enter username"
                   className="w-full input input-bordered h-10 mb-2"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                 />
               </div>
 
@@ -74,18 +70,9 @@ const Login = () => {
                 <button
                   className="btn btn-block btn-sm mt-2"
                   disabled={loading}>
-                  {loading ? (
+                  {loading ?
                     <span className="loading loading-spinner "></span>
-                  ) : (
-                    "Login"
-                  )}
-                </button>
-                <div className="divider my-4">or</div>
-                <button
-                  type="button"
-                  className="btn btn-outline btn-block btn-sm"
-                  onClick={handleDemo}>
-                  Continue as Demo User
+                  : "Login"}
                 </button>
               </div>
             </form>

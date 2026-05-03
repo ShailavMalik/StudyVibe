@@ -7,22 +7,27 @@ const useSignup = () => {
   const [error, setError] = useState(null);
   const { setUser } = useContext(AuthContext);
 
-  const signup = async ({ email, password, confirmPassword, displayName }) => {
-    const success = handleInputErrors(email, password, confirmPassword);
+  const signup = async ({ name, username, email, password }) => {
+    const success = handleInputErrors(name, username, email, password);
     if (!success) {
-      setError("Please check your inputs");
+      setError("Please fill in all required signup fields.");
       return;
     }
+
+    const normalizedName = name.trim();
+    const normalizedUsername = username.trim().toLowerCase();
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPassword = password.trim();
 
     setLoading(true);
     setError(null);
 
     try {
       const response = await api.post("/api/auth/signup", {
-        email,
-        password,
-        confirmPassword,
-        displayName: displayName || email.split("@")[0],
+        name: normalizedName,
+        username: normalizedUsername,
+        email: normalizedEmail,
+        password: normalizedPassword,
       });
 
       if (response.data.token && response.data.user) {
@@ -36,8 +41,10 @@ const useSignup = () => {
         return response.data;
       }
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.error || "Signup failed. Please try again.";
+      const errorMessage = getAuthErrorMessage(
+        error,
+        "Unable to sign up right now. Please try again.",
+      );
       setError(errorMessage);
       console.error("Error signing up:", errorMessage);
     } finally {
@@ -50,15 +57,18 @@ const useSignup = () => {
 
 export default useSignup;
 
-function handleInputErrors(email, password, confirmPassword) {
-  if (password !== confirmPassword) {
-    window.alert("Passwords do not match");
-    return false;
-  }
-  if (!email || !password) {
-    window.alert("Please fill in all fields");
+function handleInputErrors(name, username, email, password) {
+  if (!name || !username || !email || !password) {
     return false;
   }
 
   return true;
+}
+
+function getAuthErrorMessage(error, fallbackMessage) {
+  if (error?.code === "ERR_NETWORK" || !error?.response) {
+    return "Connection issue. Please check your internet or server and try again.";
+  }
+
+  return error.response?.data?.error || fallbackMessage;
 }

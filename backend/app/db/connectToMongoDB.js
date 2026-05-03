@@ -20,7 +20,13 @@ import mongoose from "mongoose";
 const connectToMongoDB = async () => {
   try {
     // Connect using the URI from environment variables
-    await mongoose.connect(process.env.MONGODB_URI);
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 30000, // Increased from 10s to 30s
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 30000,
+      retryWrites: true,
+      maxPoolSize: 10,
+    });
 
     console.log("✅ MongoDB connected successfully");
     console.log(`📊 Database: ${mongoose.connection.name}`);
