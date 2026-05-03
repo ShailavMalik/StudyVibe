@@ -36,12 +36,14 @@ const app = express();
  * Allows requests from any origin - useful during development
  * TODO: In production, restrict this to specific frontend domains
  */
+const allowedOrigin = process.env.FRONTEND_URL || "*";
+
 app.use(
   cors({
-    origin: "*", // Allow all origins for now
+    origin: allowedOrigin,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allowedHeaders: ["*"],
+    allowedHeaders: ["Content-Type", "Authorization", "Origin", "Accept"],
   }),
 );
 
