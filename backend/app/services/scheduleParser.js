@@ -1,6 +1,6 @@
-// import Tesseract from "tesseract.js";
 import fs from "fs";
-import path from "path";
+import pdfParse from "pdf-parse";
+import { createWorker } from "tesseract.js";
 
 /**
  * Parse schedule file using OCR and pattern matching
@@ -10,21 +10,19 @@ import path from "path";
  */
 export const parseScheduleFile = async (filePath, fileType) => {
   try {
-    let schedule = [];
-
     if (fileType === "text/csv") {
-      // Parse CSV file
-      schedule = await parseCSVSchedule(filePath);
-    } else if (fileType === "application/pdf") {
-      // For PDF, we'd need pdf-parse or similar library
-      // Placeholder for now
-      schedule = await parsePDFSchedule(filePath);
-    } else if (fileType.startsWith("image/")) {
-      // Use OCR for image files
-      schedule = await parseImageSchedule(filePath);
+      return await parseCSVSchedule(filePath);
     }
 
-    return schedule;
+    if (fileType === "application/pdf") {
+      return await parsePDFSchedule(filePath);
+    }
+
+    if (fileType.startsWith("image/")) {
+      return await parseImageSchedule(filePath);
+    }
+
+    return [];
   } catch (error) {
     console.error("Error parsing schedule file:", error);
     throw new Error("Failed to parse schedule file: " + error.message);
@@ -38,19 +36,31 @@ const parseImageSchedule = async (filePath) => {
   try {
     console.log("Starting OCR on image:", filePath);
 
-    // Perform OCR on the image
-    const {
-      data: { text },
-    } = await Tesseract.recognize(filePath, "eng", {
+    const worker = createWorker({
       logger: (m) => console.log("OCR Progress:", m),
     });
 
-    console.log("OCR extracted text:", text);
+    await worker.load();
+    await worker.loadLanguage("eng");
+    await worker.initialize("eng");
+    await worker.setParameters({
+      tessedit_char_whitelist:
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789:-/. ,()&%#@+",
+      preserve_interword_spaces: "1",
+    });
 
-    // Parse the extracted text
-    const schedule = parseScheduleText(text);
+    const {
+      data: { text },
+    } = await worker.recognize(filePath, "eng", {
+      tessedit_pageseg_mode: "3",
+    });
 
-    return schedule;
+    await worker.terminate();
+
+    const cleanedText = normalizeExtractedText(text);
+    console.log("OCR extracted text length:", cleanedText.length);
+
+    return parseScheduleText(cleanedText);
   } catch (error) {
     console.error("OCR error:", error);
     throw new Error("OCR failed: " + error.message);
@@ -63,26 +73,28 @@ const parseImageSchedule = async (filePath) => {
 const parseCSVSchedule = async (filePath) => {
   try {
     const fileContent = fs.readFileSync(filePath, "utf-8");
-    const lines = fileContent.split("\n").filter((line) => line.trim());
+    const lines = fileContent
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length);
 
     const schedule = [];
-
-    // Skip header row if exists
     const startIndex =
-      lines[0].toLowerCase().includes("day") ||
-      lines[0].toLowerCase().includes("time")
-        ? 1
-        : 0;
+      (
+        lines[0]?.toLowerCase().includes("day") ||
+        lines[0]?.toLowerCase().includes("time")
+      ) ?
+        1
+      : 0;
 
     for (let i = startIndex; i < lines.length; i++) {
       const parts = lines[i].split(",").map((part) => part.trim());
-
       if (parts.length >= 4) {
         schedule.push({
-          day: parts[0] || "",
+          day: capitalizeDay(parts[0] || ""),
           subject: parts[1] || "",
-          startTime: parts[2] || "",
-          endTime: parts[3] || "",
+          startTime: formatTime(parts[2] || ""),
+          endTime: formatTime(parts[3] || ""),
         });
       }
     }
@@ -95,22 +107,19 @@ const parseCSVSchedule = async (filePath) => {
 };
 
 /**
- * Parse PDF schedule file
- * Note: Requires pdf-parse package (npm install pdf-parse)
+ * Parse PDF schedule file using pdf-parse
  */
 const parsePDFSchedule = async (filePath) => {
   try {
-    // TODO: Implement PDF parsing with pdf-parse
-    // For now, return empty array with a note to install pdf-parse
-    console.log("PDF parsing not yet implemented. Install pdf-parse package.");
+    const dataBuffer = fs.readFileSync(filePath);
+    const data = await pdfParse(dataBuffer);
+    const extractedText = normalizeExtractedText(data.text || "");
 
-    // Placeholder implementation
-    // const pdfParse = require('pdf-parse');
-    // const dataBuffer = fs.readFileSync(filePath);
-    // const data = await pdfParse(dataBuffer);
-    // return parseScheduleText(data.text);
+    if (!extractedText || extractedText.length < 10) {
+      throw new Error("PDF text extraction yielded no usable content.");
+    }
 
-    return [];
+    return parseScheduleText(extractedText);
   } catch (error) {
     console.error("PDF parsing error:", error);
     throw new Error("PDF parsing failed: " + error.message);
@@ -118,56 +127,128 @@ const parsePDFSchedule = async (filePath) => {
 };
 
 /**
+ * Clean up OCR/PDF extracted text before parsing
+ */
+const normalizeExtractedText = (text) => {
+  return String(text || "")
+    .replace(/[\u2012\u2013\u2014\u2015]/g, "-")
+    .replace(/[•·]/g, " ")
+    .replace(/[^\t\n\r -~]/g, " ")
+    .replace(/\r\n|\r/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{2,}/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+};
+/**
  * Parse schedule from extracted text using pattern matching
- * Looks for patterns like:
+ * Supports text like:
  * - "Monday 9:00-10:00 Math"
  * - "Tue 09:00 AM - 10:00 AM Physics"
+ * - table rows separated by tabs, pipes, or multiple spaces
  */
 const parseScheduleText = (text) => {
   const schedule = [];
-  const lines = text.split("\n").filter((line) => line.trim());
-
-  // Days of the week patterns
-  const dayPatterns =
-    /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)\b/gi;
-
-  // Time patterns (supports various formats)
-  const timePatterns = /(\d{1,2}):?(\d{2})?\s*(am|pm)?/gi;
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length);
 
   for (const line of lines) {
-    const dayMatch = line.match(dayPatterns);
-    const timeMatches = Array.from(line.matchAll(timePatterns));
-
-    if (dayMatch && timeMatches.length >= 2) {
-      // Extract day
-      const day = capitalizeDay(dayMatch[0]);
-
-      // Extract times
-      const startTime = formatTime(timeMatches[0][0]);
-      const endTime = formatTime(timeMatches[1][0]);
-
-      // Extract subject (remaining text after removing day and times)
-      let subject = line
-        .replace(dayPatterns, "")
-        .replace(timePatterns, "")
-        .replace(/[-–—]/g, "")
-        .trim();
-
-      // Clean up subject name
-      subject = subject.replace(/\s+/g, " ").trim();
-
-      if (day && startTime && endTime && subject) {
-        schedule.push({
-          day,
-          subject,
-          startTime,
-          endTime,
-        });
-      }
+    const parsed = parseScheduleLine(line);
+    if (parsed) {
+      schedule.push(parsed);
     }
   }
 
   return schedule;
+};
+
+const dayPatterns =
+  /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)\b/gi;
+const timePatterns = /(\d{1,2}):?(\d{2})?\s*(am|pm)?/gi;
+
+const parseScheduleLine = (line) => {
+  const normalized = line
+    .replace(/\|/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  const day = extractDay(normalized);
+  const timeRange = extractTimeRange(normalized);
+
+  if (!day || !timeRange) {
+    return null;
+  }
+
+  const cells = normalized
+    .replace(dayPatterns, "")
+    .replace(timeRange.rangeText, "")
+    .replace(/[-–—]/g, " ")
+    .replace(/\b(am|pm)\b/gi, "")
+    .replace(/[^\t\n\r -~]/g, " ")
+    .split(/\t|\|/)
+    .map((cell) => cell.trim())
+    .filter(Boolean);
+
+  let subject = cells.join(" ");
+
+  if (cells.length >= 3) {
+    subject = cells
+      .slice(2)
+      .join(" ")
+      .replace(/\b(am|pm)\b/gi, "")
+      .replace(/[^\w\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  if (!subject) {
+    return null;
+  }
+
+  return {
+    day,
+    subject,
+    startTime: timeRange.start,
+    endTime: timeRange.end,
+  };
+};
+
+const extractDay = (text) => {
+  const match = text.match(dayPatterns);
+  return match ? capitalizeDay(match[0]) : "";
+};
+
+const extractTimeRange = (text) => {
+  const rangePattern =
+    /(\d{1,2}):?(\d{2})?\s*(am|pm)?\s*[-–—]\s*(\d{1,2}):?(\d{2})?\s*(am|pm)?/i;
+  const rangeMatch = text.match(rangePattern);
+
+  if (rangeMatch) {
+    const start = formatTime(
+      `${rangeMatch[1]}:${rangeMatch[2] || "00"}${rangeMatch[3] ? " " + rangeMatch[3] : ""}`,
+    );
+    const end = formatTime(
+      `${rangeMatch[4]}:${rangeMatch[5] || "00"}${rangeMatch[6] ? " " + rangeMatch[6] : ""}`,
+    );
+
+    return {
+      start,
+      end,
+      rangeText: rangeMatch[0],
+    };
+  }
+
+  const matches = Array.from(text.matchAll(timePatterns));
+  if (matches.length >= 2) {
+    return {
+      start: formatTime(matches[0][0]),
+      end: formatTime(matches[1][0]),
+      rangeText: `${matches[0][0]} ${matches[1][0]}`,
+    };
+  }
+
+  return null;
 };
 
 /**
@@ -196,26 +277,23 @@ const capitalizeDay = (day) => {
  * Format time to HH:MM format
  */
 const formatTime = (timeStr) => {
-  // Remove spaces and convert to lowercase
   timeStr = timeStr.replace(/\s+/g, "").toLowerCase();
-
-  // Extract components
   const match = timeStr.match(/(\d{1,2}):?(\d{2})?(am|pm)?/i);
 
-  if (!match) return timeStr;
+  if (!match) {
+    return timeStr;
+  }
 
-  let hours = parseInt(match[1]);
-  const minutes = match[2] ? parseInt(match[2]) : 0;
+  let hours = parseInt(match[1], 10);
+  const minutes = match[2] ? parseInt(match[2], 10) : 0;
   const period = match[3];
 
-  // Convert to 24-hour format
   if (period === "pm" && hours !== 12) {
     hours += 12;
   } else if (period === "am" && hours === 12) {
     hours = 0;
   }
 
-  // Format as HH:MM
   return `${hours.toString().padStart(2, "0")}:${minutes
     .toString()
     .padStart(2, "0")}`;

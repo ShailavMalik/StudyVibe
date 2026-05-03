@@ -27,7 +27,7 @@
  * <ProgressDashboard studyPlan={generatedPlan} />
  */
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
 
 /**
@@ -47,7 +47,7 @@ function ProgressDashboard({ studyPlan }) {
   const [dashboardData, setDashboardData] = useState(null);
 
   // Get today's date in DD-MMMM-YYYY format (matching AI output)
-  const getTodayFormatted = () => {
+  const getTodayFormatted = useCallback(() => {
     const today = new Date();
     const day = String(today.getDate()).padStart(2, "0");
     const months = [
@@ -67,7 +67,7 @@ function ProgressDashboard({ studyPlan }) {
     const month = months[today.getMonth()];
     const year = today.getFullYear();
     return `${day}-${month}-${year}`;
-  };
+  }, []);
 
   // Normalize studyPlan so every date maps to an array of sessions
   const normalizePlan = (plan) => {
@@ -101,7 +101,7 @@ function ProgressDashboard({ studyPlan }) {
   /**
    * Fetch dashboard data including streak and today's completion
    */
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       const token = localStorage.getItem("studyvibe_token");
       if (!token) return;
@@ -113,7 +113,7 @@ function ProgressDashboard({ studyPlan }) {
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     }
-  };
+  }, []);
 
   /**
    * Load today's sessions from study plan and fetch dashboard data from backend on mount
@@ -125,7 +125,7 @@ function ProgressDashboard({ studyPlan }) {
 
     // Fetch dashboard data from backend only once on mount
     fetchDashboardData();
-  }, []);
+  }, [fetchDashboardData, getTodayFormatted, safeStudyPlan]);
 
   /**
    * Calculate statistics for today's sessions

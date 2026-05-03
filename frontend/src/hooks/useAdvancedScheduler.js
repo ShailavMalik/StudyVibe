@@ -22,7 +22,7 @@ const useAdvancedScheduler = () => {
       const formData = new FormData();
       formData.append("schedule", file);
 
-      const response = await api.post("/schedule/upload", formData, {
+      const response = await api.post("/api/schedule/upload", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
@@ -54,7 +54,7 @@ const useAdvancedScheduler = () => {
       setError(null);
 
       // Call AI service to generate optimized plan
-      const response = await api.post("/planner/advanced", advancedData);
+      const response = await api.post("/api/planner/advanced", advancedData);
 
       return response.data;
     } catch (err) {

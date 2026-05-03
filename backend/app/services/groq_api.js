@@ -109,56 +109,78 @@ export async function generateSmartTimetable(
       )
       .join("\n");
 
-    const systemPrompt = `You are a study planner AI. Generate a complete study timetable in JSON format.
+    const systemPrompt = `You are an expert AI study planner specializing in personalized, science-backed study schedules.
+Your task: Generate an optimized 14-day study timetable in valid JSON format.
 
-CRITICAL REQUIREMENTS:
-1. INCLUDE ALL SUBJECTS in EVERY day's schedule
-2. Use the provided weight multipliers for each subject
-3. NEVER remove any subject from the schedule
-4. Dates must be in DD-MMMM-YYYY format exactly
-5. Calculate daily hours: (availableHours × subjectWeight) / sum(allWeights)
+=== CRITICAL REQUIREMENTS ===
+1. ✓ INCLUDE ALL SUBJECTS in the schedule - NEVER omit any subject
+2. ✓ Apply weight multipliers accurately for subject allocation
+3. ✓ Generate realistic session durations (25-90 minutes per session)
+4. ✓ Respect exam dates - allocate more time closer to exams
+5. ✓ Date format MUST be DD-MMMM-YYYY (e.g., 03-May-2026, 15-June-2026)
 
-TODAY: ${today}
+=== TODAY'S DATE ===
+${today}
 
-SUBJECTS WITH WEIGHTS (higher = more focus):
+=== SUBJECTS & WEIGHTS (Higher weight = more study time) ===
 ${weightInfo}
 
-AVAILABLE HOURS/DAY: ${availableHoursPerDay}
-CUSTOM INSTRUCTIONS: ${customPrompt || "Balanced plan optimizing exam dates"}
+AVAILABLE STUDY HOURS PER DAY: ${availableHoursPerDay}
+CUSTOM INSTRUCTIONS FROM USER: "${customPrompt || "Create a balanced, exam-focused schedule"}"
 
-WEIGHT CALCULATION EXAMPLE:
-If weights are: Math=1.8, Science=1.0, English=1.0
+=== WEIGHT CALCULATION METHODOLOGY ===
+Step 1: Sum all subject weights
+Step 2: Calculate each subject's daily allocation = (availableHours × subjectWeight) / totalWeight
+Step 3: Break allocations into realistic sessions (25-90 minutes)
+
+EXAMPLE with weights Math=1.8, Science=1.0, English=1.0 and 7 available hours:
 Total weight = 3.8
-Daily allocation for 7 hours:
-- Math: (7 × 1.8) / 3.8 = 3.32 hrs
-- Science: (7 × 1.0) / 3.8 = 1.84 hrs  
-- English: (7 × 1.0) / 3.8 = 1.84 hrs
+Daily allocations:
+  - Math: (7 × 1.8) / 3.8 ≈ 3.3 hours = 2 sessions (90 min + 90 min)
+  - Science: (7 × 1.0) / 3.8 ≈ 1.8 hours = 2 sessions (50 min + 50 min)
+  - English: (7 × 1.0) / 3.8 ≈ 1.8 hours = 2 sessions (50 min + 50 min)
 
-RULES:
-1. Schedule from today for 14 days
-2. Apply weight multipliers to each subject daily
-3. Sessions: Each subject gets allocated hours
-4. Date format MUST be DD-MMMM-YYYY (e.g., 03-May-2026)
-5. Distribute ${availableHoursPerDay} hours/day using weights
-6. Use REAL dates only
+=== SCHEDULING RULES ===
+1. Generate 14-day schedule starting from today
+2. For each day, distribute ${availableHoursPerDay} hours using weight multipliers
+3. Create multiple sessions per subject per day (2-4 sessions recommended)
+4. Session duration: 25-90 minutes (respects Pomodoro/study science)
+5. Include optional topic/chapter for focus
+6. Break down longer sessions (90+ min) with variety (different chapters/types)
+7. Gradually increase difficulty as exam dates approach
+8. Ensure all subjects appear every day (minimum 25 min per subject daily)
 
-OUTPUT FORMAT - Return ONLY valid JSON:
+=== SUBJECT EXAM DATE PRIORITY ===
+Subjects with closer exam dates should get progressively more allocation.
+
+=== IMPORTANT FORMAT RULES ===
+- Date format: DD-MMMM-YYYY (examples: 03-May-2026, 25-Dec-2026, 01-Jan-2026)
+- Duration: number in hours (e.g., 1.5, 2.25, 0.75)
+- Do NOT include time (no HH:MM format)
+- All durations must sum to approximately ${availableHoursPerDay} hours per day
+
+=== JSON OUTPUT REQUIREMENTS ===
+Return ONLY valid JSON with NO markdown, NO code blocks, NO explanations:
 {
   "schedule": [
     {
       "subject": "Subject Name",
       "date": "03-May-2026",
-      "duration": 2.5,
-      "topic": "Optional topic"
-    },
-    {
-      "subject": "Other Subject",
-      "date": "03-May-2026",
-      "duration": 1.8,
-      "topic": "Optional topic"
+      "duration": 1.5,
+      "topic": "Chapter/Topic Name or specific focus area",
+      "difficulty": "beginner|intermediate|advanced"
     }
   ]
-}`;
+}
+
+=== VALIDATION CHECKLIST BEFORE RESPONDING ===
+✓ All ${subjects.length} subjects appear in the schedule
+✓ Each date is formatted as DD-MMMM-YYYY
+✓ All durations are positive numbers
+✓ JSON is valid (testable by JSON.parse)
+✓ Daily totals approximately equal ${availableHoursPerDay} hours
+✓ Schedule covers 14 consecutive days
+✓ No syntax errors or markdown formatting`;
 
     const model = "llama-3.3-70b-versatile";
 
@@ -293,9 +315,27 @@ const getSubjectWeightForAI = (subjectName, prompt) => {
 
 export async function generateAdvancedSchedule(advancedData) {
   try {
-    const { schedule, commitments, preferences, subjects } = advancedData;
+    const {
+      schedule,
+      commitments = [],
+      preferences = {},
+      subjects = [],
+    } = advancedData;
 
-    const subjectDifficulty = preferences?.subjectDifficulty || {};
+    // Extract preferences with defaults
+    const subjectDifficulty = preferences.subjectDifficulty || {};
+    const pomodoro = preferences.pomodoro || {
+      focusDuration: 25,
+      breakDuration: 5,
+      longBreakDuration: 15,
+      sessionsBeforeLongBreak: 4,
+    };
+    const minSessionLength = preferences.minSessionLength || 25;
+    const maxSessionLength = preferences.maxSessionLength || 120;
+    const sleepSchedule = preferences.sleepSchedule || { start: 23, end: 7 };
+    const preferredTimes = preferences.preferredTimes || [];
+
+    // Build comprehensive prompt with all details
     const subjectsInfo = (subjects || [])
       .map(
         (s) =>
@@ -303,18 +343,84 @@ export async function generateAdvancedSchedule(advancedData) {
       )
       .join("\n");
 
-    const preferredTimes =
-      preferences?.preferredTimes?.join(", ") || "Flexible";
-    const pomodoro = preferences?.pomodoro || {};
-    const pomodoroInfo = `${pomodoro.focusDuration || 25}min focus + ${pomodoro.breakDuration || 5}min break`;
+    const commitmentsList = (commitments || [])
+      .map(
+        (c) =>
+          `- ${c.name} (${c.startTime}-${c.endTime} on ${c.days.join(", ")})`,
+      )
+      .join("\n");
 
-    const systemPrompt = `You are an advanced AI study scheduler with expertise in time management and Pomodoro technique.\n\nSUBJECTS:\n${subjectsInfo}\n\nAVAILABLE TIME SLOTS:\n${JSON.stringify(schedule).slice(0, 2000)}\n\nUSER PREFERENCES:\n- Preferred Times: ${preferredTimes}\n- Pomodoro: ${pomodoroInfo}\n\nREQUIREMENTS: Provide JSON with top-level 'schedule' array including sessions with exact times and pomodoro breakdown.`;
+    const preferredTimesStr =
+      preferredTimes.length > 0 ? preferredTimes.join(", ") : "Flexible";
+
+    const advancedPrompt = `You are an expert study scheduler with deep knowledge of learning science, time management, and the Pomodoro Technique.
+
+TASK: Create a detailed, realistic weekly study schedule that respects all constraints and optimizes learning.
+
+=== USER PROFILE ===
+SUBJECTS TO STUDY:
+${subjectsInfo}
+
+FIXED COMMITMENTS (Cannot study during these times):
+${commitmentsList || "None specified - fully flexible"}
+
+STUDY PREFERENCES:
+- Preferred Times: ${preferredTimesStr}
+- Pomodoro: ${pomodoro.focusDuration}min focus + ${pomodoro.breakDuration}min break
+- Long Break: ${pomodoro.longBreakDuration}min after ${pomodoro.sessionsBeforeLongBreak} sessions
+- Session Length: ${minSessionLength}-${maxSessionLength} minutes
+- Sleep Schedule: ${sleepSchedule.start}:00 to ${sleepSchedule.end}:00
+
+AVAILABLE TIME BLOCKS (Free study windows):
+${JSON.stringify(schedule || {}).slice(0, 2000)}
+
+=== SCHEDULING REQUIREMENTS ===
+1. ✓ Fill all free time slots efficiently
+2. ✓ Respect commitments - NO study during commitment hours
+3. ✓ Allocate more time to high-difficulty subjects
+4. ✓ Study subjects in preferred time windows when possible
+5. ✓ Break long sessions with Pomodoro breaks
+6. ✓ Honor sleep schedule - no studying during sleep hours
+7. ✓ Create realistic, achievable daily schedules
+8. ✓ Include mix of reviewing and new content daily
+
+=== OUTPUT FORMAT ===
+Return ONLY valid JSON (no markdown, no code blocks):
+{
+  "schedule": [
+    {
+      "day": "Monday",
+      "subject": "Subject Name",
+      "startTime": "09:00",
+      "endTime": "10:30",
+      "duration": 1.5,
+      "topic": "Specific chapter/topic",
+      "sessionType": "learning|review|practice",
+      "pomodoroSessions": 1,
+      "notes": "Brief motivation/tip"
+    }
+  ],
+  "summary": {
+    "totalHours": 21,
+    "subjectBreakdown": {"Subject1": 8, "Subject2": 7, "Subject3": 6},
+    "optimalityScore": 0.92,
+    "warnings": ["Any constraints that couldn't be fully met"]
+  }
+}
+
+=== QUALITY CRITERIA ===
+✓ Every session respects minimum and maximum duration
+✓ No overlaps with commitments or sleep
+✓ Difficulty-matched content (harder subjects get better time slots)
+✓ Pomodoro-friendly durations with natural break points
+✓ Realistic and achievable (student won't burn out)
+✓ Clear topic focus for each session`;
 
     const model = "llama-3.3-70b-versatile";
 
-    const text = await callGroqModel(systemPrompt, model, {
+    const text = await callGroqModel(advancedPrompt, model, {
       max_tokens: 8192,
-      temperature: 0.2,
+      temperature: 0.3, // More deterministic for scheduling
     });
 
     let cleaned = text?.trim() || "";
@@ -325,13 +431,38 @@ export async function generateAdvancedSchedule(advancedData) {
       .replace(/^[^\{\[]*/, "")
       .replace(/[^\}\]]*$/, "");
 
+    let parsedResponse = null;
     try {
-      return JSON.parse(cleaned);
+      parsedResponse = JSON.parse(cleaned);
     } catch (err) {
-      throw new Error(
-        `Failed to parse GROQ advanced schedule JSON: ${err.message} -- raw: ${cleaned.substring(0, 1000)}`,
-      );
+      console.error("Advanced schedule JSON parse error:", err);
+      // Return basic fallback schedule
+      return {
+        schedule: [],
+        summary: {
+          error: "Failed to parse advanced schedule",
+          fallback: "Use the standard smart timetable instead",
+        },
+      };
     }
+
+    // Validate and enhance response
+    if (parsedResponse && parsedResponse.schedule) {
+      // Ensure all sessions have required fields
+      parsedResponse.schedule = parsedResponse.schedule.map((session) => ({
+        day: session.day || "Unknown",
+        subject: session.subject || "Study",
+        startTime: session.startTime || "09:00",
+        endTime: session.endTime || "10:00",
+        duration: session.duration || 1,
+        topic: session.topic || "General review",
+        sessionType: session.sessionType || "learning",
+        pomodoroSessions: session.pomodoroSessions || 1,
+        notes: session.notes || "",
+      }));
+    }
+
+    return parsedResponse;
   } catch (error) {
     console.error("GROQ generateAdvancedSchedule error:", error);
     throw error;

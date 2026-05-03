@@ -47,46 +47,119 @@ const normalizeEntries = (entries) => {
   return [];
 };
 
+const normalizeDateLabel = (dateLabel) => {
+  if (!dateLabel) return null;
+
+  const normalizedLabel = String(dateLabel).trim();
+  const dayNameMap = {
+    monday: 1,
+    tuesday: 2,
+    wednesday: 3,
+    thursday: 4,
+    friday: 5,
+    saturday: 6,
+    sunday: 0,
+  };
+
+  const lowerCaseLabel = normalizedLabel.toLowerCase();
+  if (dayNameMap[lowerCaseLabel] !== undefined) {
+    return dayjs().day(dayNameMap[lowerCaseLabel]).format("DD-MMMM-YYYY");
+  }
+
+  const parsedDate = dayjs(normalizedLabel, [
+    "DD-MMMM-YYYY",
+    "YYYY-MM-DD",
+    "DD/MM/YYYY",
+    "MMMM D, YYYY",
+  ]);
+
+  return parsedDate.isValid() ?
+      parsedDate.format("DD-MMMM-YYYY")
+    : normalizedLabel;
+};
+
+const parseDateTime = (date, time) => {
+  if (!date || !time) return null;
+
+  const normalizedDate = normalizeDateLabel(date);
+  if (!normalizedDate) return null;
+
+  const formats = [
+    "DD-MMMM-YYYY HH:mm",
+    "DD-MMMM-YYYY H:mm",
+    "DD-MMMM-YYYY h:mm A",
+    "DD-MMMM-YYYY hh:mm A",
+    "YYYY-MM-DD HH:mm",
+    "YYYY-MM-DDTHH:mm",
+    "YYYY-MM-DDTHH:mm:ss",
+  ];
+
+  for (const format of formats) {
+    const parsed = dayjs(`${normalizedDate} ${time}`, format);
+    if (parsed.isValid()) return parsed;
+  }
+
+  return null;
+};
+
 const convertPlanToEvents = (plan) => {
   const events = [];
 
   Object.entries(plan || {}).forEach(([date, rawEntries]) => {
     const entries = normalizeEntries(rawEntries);
+    const normalizedDateLabel = normalizeDateLabel(date);
 
     // Check if this is an Advanced Plan (has preferredStartHour) or Quick Plan
     const isAdvancedPlan = entries.some(
       (entry) => entry.preferredStartHour !== undefined,
     );
 
-    let currentTime = dayjs(date, "DD-MMMM-YYYY").hour(8).minute(0).second(0); // Default start at 8:00 AM for Quick Plan
+    let currentTime = dayjs(normalizedDateLabel, "DD-MMMM-YYYY")
+      .hour(8)
+      .minute(0)
+      .second(0); // Default start at 8:00 AM for Quick Plan
 
     entries.forEach((entry, index) => {
       let start;
+      let end;
 
-      if (isAdvancedPlan && entry.preferredStartHour !== undefined) {
-        // Advanced Plan: Sequential non-overlapping sessions
-        if (index === 0) {
-          // First session: use preferred start hour
-          start = dayjs(date, "DD-MMMM-YYYY")
-            .hour(entry.preferredStartHour)
-            .minute(0)
-            .second(0);
+      const parsedStart =
+        entry.startTime ? parseDateTime(date, entry.startTime) : null;
+      const parsedEnd =
+        entry.endTime ? parseDateTime(date, entry.endTime) : null;
+
+      if (parsedStart) start = parsedStart;
+      if (parsedEnd) end = parsedEnd;
+
+      const hours = entry.time?.hours ?? Math.floor(entry.hours || 0);
+      const minutes =
+        entry.time?.minutes ?? Math.round(((entry.hours || 0) % 1) * 60);
+
+      if (!start) {
+        if (isAdvancedPlan && entry.preferredStartHour !== undefined) {
+          if (index === 0) {
+            start = dayjs(date, "DD-MMMM-YYYY")
+              .hour(entry.preferredStartHour)
+              .minute(0)
+              .second(0);
+          } else {
+            start = currentTime;
+          }
         } else {
-          // Subsequent sessions: start after previous session ends
           start = currentTime;
         }
-      } else {
-        // Quick Plan: Stack sessions sequentially starting from 8 AM
-        start = currentTime;
       }
 
-      // Use the rounded time values if available, otherwise fallback to hours
-      const hours = entry.time?.hours || Math.floor(entry.hours);
-      const minutes = entry.time?.minutes || Math.round((entry.hours % 1) * 60);
-      const end = start.add(hours, "hour").add(minutes, "minute");
+      if (!end) {
+        end = start.add(hours, "hour").add(minutes, "minute");
+      }
 
       const colors = getSubjectColor(entry.subject);
-      const timeFormatted = entry.timeFormatted || `${hours} hr ${minutes} min`;
+      const timeFormatted =
+        entry.timeFormatted ||
+        (typeof entry.hours === "number" ?
+          `${entry.hours} hr ${minutes} min`
+        : `${hours} hr ${minutes} min`);
 
       events.push({
         id: `${date}-${entry.subject}-${index}`,

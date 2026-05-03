@@ -66,7 +66,9 @@ function Dashboard() {
 
     if (cachedAdvancedPlan) {
       try {
-        setAdvancedPlan(JSON.parse(cachedAdvancedPlan));
+        const parsedPlan = JSON.parse(cachedAdvancedPlan);
+        const normalizedPlan = normalizeAdvancedPlan(parsedPlan) || parsedPlan;
+        setAdvancedPlan(normalizedPlan);
         if (cachedAdvancedSubjects)
           setSubjects(JSON.parse(cachedAdvancedSubjects));
         if (cachedStudyHours) setStudyHoursAvailable(Number(cachedStudyHours));
@@ -138,12 +140,80 @@ function Dashboard() {
     }
   };
 
+  const normalizeAdvancedPlan = (rawPlan) => {
+    if (!rawPlan) return null;
+
+    if (
+      rawPlan.schedule &&
+      !Array.isArray(rawPlan.schedule) &&
+      typeof rawPlan.schedule === "object"
+    ) {
+      return rawPlan.schedule;
+    }
+
+    const scheduleItems =
+      Array.isArray(rawPlan) ? rawPlan : rawPlan.schedule || rawPlan;
+
+    if (!scheduleItems || !Array.isArray(scheduleItems)) {
+      return typeof rawPlan === "object" ? rawPlan : null;
+    }
+
+    if (scheduleItems.length === 0) {
+      return null;
+    }
+
+    const grouped = {};
+    scheduleItems.forEach((entry) => {
+      const date = entry.date || entry.day || "Unknown";
+      if (!grouped[date]) grouped[date] = [];
+
+      grouped[date].push({
+        ...entry,
+        hours: entry.hours ?? entry.duration ?? 0,
+        timeFormatted:
+          entry.timeFormatted ||
+          (typeof entry.duration === "number" ?
+            `${entry.duration} hr`
+          : undefined),
+      });
+    });
+
+    return grouped;
+  };
+
   const handleAdvancedGenerate = async (advancedData, useAI = false) => {
     console.log("Advanced scheduler data:", advancedData);
 
     if (useAI) {
-      // TODO: Implement AI-powered scheduling
-      alert("🚀 AI optimization is in preview! Coming soon.");
+      // AI-powered scheduling
+      try {
+        const response = await api.post("/api/planner/advanced", advancedData);
+        const aiSchedule = response.data.schedule;
+        const normalizedPlan = normalizeAdvancedPlan(aiSchedule);
+
+        if (normalizedPlan) {
+          setAdvancedPlan(normalizedPlan);
+          localStorage.setItem(
+            "advancedPlanCache",
+            JSON.stringify(normalizedPlan),
+          );
+          localStorage.setItem(
+            "advancedPlanSubjects",
+            JSON.stringify(advancedData.subjects),
+          );
+          localStorage.setItem(
+            "studyHoursAvailable",
+            studyHoursAvailable.toString(),
+          );
+          await persistPlanToMongo(normalizedPlan);
+          console.log("💾 AI Advanced Plan cached");
+        } else {
+          alert("❌ Failed to generate AI schedule. Try static generation.");
+        }
+      } catch (error) {
+        console.error("AI generation error:", error);
+        alert("❌ AI optimization failed: " + error.message);
+      }
       return;
     }
 

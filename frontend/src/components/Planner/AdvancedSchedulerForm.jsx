@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import WeeklyScheduleGrid from "./WeeklyScheduleGrid";
 import "./AdvancedSchedulerForm.css";
+import { api } from "../../services/api";
 
 /**
  * AdvancedSchedulerForm - Comprehensive scheduling interface
@@ -27,6 +28,63 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
     sleepSchedule: { start: 23, end: 7 },
   });
 
+  const normalizeDayName = (day) => {
+    if (!day) return "";
+
+    const normalized = String(day).trim().toLowerCase();
+    const dayMap = {
+      mon: "Monday",
+      monday: "Monday",
+      tue: "Tuesday",
+      tues: "Tuesday",
+      tuesday: "Tuesday",
+      wed: "Wednesday",
+      wednesday: "Wednesday",
+      thu: "Thursday",
+      thur: "Thursday",
+      thurs: "Thursday",
+      thursday: "Thursday",
+      fri: "Friday",
+      friday: "Friday",
+      sat: "Saturday",
+      saturday: "Saturday",
+      sun: "Sunday",
+      sunday: "Sunday",
+    };
+
+    return dayMap[normalized] || "";
+  };
+
+  const parseTimeToHour = (time) => {
+    const [hourStr] = String(time || "00:00").split(":");
+    return Math.max(0, Math.min(23, parseInt(hourStr, 10) || 0));
+  };
+
+  const convertParsedScheduleToGrid = (entries, existingSchedule = {}) => {
+    const next = { ...existingSchedule };
+
+    entries.forEach((entry) => {
+      const dayName = normalizeDayName(entry.day);
+      if (!dayName) return;
+
+      const startHour = parseTimeToHour(entry.startTime);
+      const endHourRaw = parseTimeToHour(entry.endTime);
+      const endHour = endHourRaw <= startHour ? startHour + 1 : endHourRaw;
+
+      for (let hour = startHour; hour < Math.min(endHour, 24); hour += 1) {
+        const key = `${dayName}-${hour}`;
+        next[key] = {
+          day: dayName,
+          hour,
+          type: "class",
+          label: entry.subject || "Class",
+        };
+      }
+    });
+
+    return next;
+  };
+
   /**
    * Handle file upload for schedule
    */
@@ -41,22 +99,27 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
       const formData = new FormData();
       formData.append("schedule", file);
 
-      const response = await fetch("/api/schedule/upload", {
-        method: "POST",
-        body: formData,
+      const response = await api.post("/api/schedule/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setParsedSchedule(data.schedule);
-        alert("✅ Schedule parsed successfully! Review and edit if needed.");
+      const parsedEntries = response?.data?.schedule || [];
+      setParsedSchedule(parsedEntries);
+
+      if (parsedEntries.length > 0) {
+        setSchedule((prev) => convertParsedScheduleToGrid(parsedEntries, prev));
+        alert("✅ Schedule parsed and added to Manual Input grid.");
       } else {
-        alert("❌ Failed to parse schedule. Please try manual input.");
+        alert(
+          "⚠️ File uploaded, but no timetable rows were detected. You can still use Manual Input.",
+        );
       }
     } catch (error) {
       console.error("Upload error:", error);
       alert(
-        "❌ Upload failed. Please try manual input or check your connection."
+        `❌ Upload failed: ${
+          error?.response?.data?.message || "Please try manual input."
+        }`,
       );
     } finally {
       setIsParsingFile(false);
@@ -78,6 +141,16 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
   const deleteParsedEntry = (index) => {
     const updated = parsedSchedule.filter((_, i) => i !== index);
     setParsedSchedule(updated);
+  };
+
+  const applyParsedToGrid = () => {
+    if (!parsedSchedule || parsedSchedule.length === 0) {
+      alert("⚠️ No parsed schedule rows to apply.");
+      return;
+    }
+
+    setSchedule((prev) => convertParsedScheduleToGrid(parsedSchedule, prev));
+    alert("✅ Parsed rows applied to Manual Input grid.");
   };
 
   /**
@@ -147,7 +220,7 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
    */
   const handleGenerateAdvanced = (useAI = false) => {
     const advancedData = {
-      schedule: parsedSchedule || schedule,
+      schedule,
       commitments,
       preferences,
       subjects,
@@ -190,9 +263,9 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm md:text-base font-medium transition-all duration-200 ${
-              activeTab === tab.id
-                ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-md"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              activeTab === tab.id ?
+                "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-md"
+              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}>
             {tab.label}
           </button>
@@ -204,27 +277,11 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
         {/* SECTION A: Upload Schedule */}
         {activeTab === "upload" && (
           <div className="space-y-4">
-            {/* Under Development Banner */}
-            <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-6 mb-6">
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-3xl">🚧</span>
-                <h3 className="text-xl font-bold text-yellow-800">
-                  Under Development
-                </h3>
-              </div>
-              <p className="text-yellow-700 text-sm">
-                This feature is currently under development. AI-powered schedule
-                parsing from images and PDFs will be available soon. Please use
-                the <strong>Manual Input</strong> tab to mark your schedule for
-                now.
-              </p>
-            </div>
-
             <h3 className="text-lg font-semibold text-gray-800 mb-4">
               Upload Your College/School Timetable
             </h3>
 
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-purple-400 transition-colors opacity-50 pointer-events-none">
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-purple-400 transition-colors">
               <input
                 type="file"
                 id="scheduleUpload"
@@ -240,7 +297,8 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
                   Click to upload or drag and drop
                 </div>
                 <div className="text-sm text-gray-500">
-                  PDF, PNG, JPG, or CSV (Max 10MB)
+                  CSV supported now (Max 10MB). Image/PDF parsing requires OCR
+                  setup.
                 </div>
                 {uploadedFile && (
                   <div className="mt-2 px-4 py-2 bg-green-100 text-green-800 rounded-lg">
@@ -249,6 +307,11 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
                 )}
               </label>
             </div>
+
+            <p className="text-sm text-gray-600">
+              Parsed classes are automatically added to the Manual Input grid as
+              <strong> class </strong> blocks.
+            </p>
 
             {isParsingFile && (
               <div className="flex items-center justify-center gap-3 p-4">
@@ -262,9 +325,16 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
             {/* Parsed Schedule Table */}
             {parsedSchedule && parsedSchedule.length > 0 && (
               <div className="mt-6">
-                <h4 className="font-semibold text-gray-800 mb-3">
-                  📋 Parsed Schedule (Editable)
-                </h4>
+                <div className="flex items-center justify-between mb-3 gap-3">
+                  <h4 className="font-semibold text-gray-800">
+                    📋 Parsed Schedule (Editable)
+                  </h4>
+                  <button
+                    onClick={applyParsedToGrid}
+                    className="px-3 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg text-sm font-semibold">
+                    Apply To Manual Grid
+                  </button>
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse">
                     <thead>
@@ -307,7 +377,7 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
                                 updateParsedEntry(
                                   idx,
                                   "subject",
-                                  e.target.value
+                                  e.target.value,
                                 )
                               }
                               className="w-full px-2 py-1 border border-gray-300 rounded"
@@ -321,7 +391,7 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
                                 updateParsedEntry(
                                   idx,
                                   "startTime",
-                                  e.target.value
+                                  e.target.value,
                                 )
                               }
                               className="w-full px-2 py-1 border border-gray-300 rounded"
@@ -335,7 +405,7 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
                                 updateParsedEntry(
                                   idx,
                                   "endTime",
-                                  e.target.value
+                                  e.target.value,
                                 )
                               }
                               className="w-full px-2 py-1 border border-gray-300 rounded"
@@ -393,15 +463,14 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
               </button>
             </div>
 
-            {commitments.length === 0 ? (
+            {commitments.length === 0 ?
               <div className="text-center py-12 text-gray-500">
                 <div className="text-4xl mb-3">📝</div>
                 <p>
                   No commitments added yet. Click "Add Commitment" to start.
                 </p>
               </div>
-            ) : (
-              <div className="space-y-4">
+            : <div className="space-y-4">
                 {commitments.map((commitment, idx) => (
                   <div
                     key={idx}
@@ -485,15 +554,16 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
                             <button
                               key={day}
                               onClick={() => {
-                                const days = commitment.days.includes(day)
-                                  ? commitment.days.filter((d) => d !== day)
+                                const days =
+                                  commitment.days.includes(day) ?
+                                    commitment.days.filter((d) => d !== day)
                                   : [...commitment.days, day];
                                 updateCommitment(idx, "days", days);
                               }}
                               className={`px-3 py-1 rounded-lg font-medium text-sm transition-all ${
-                                commitment.days.includes(day)
-                                  ? "bg-purple-600 text-white"
-                                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                                commitment.days.includes(day) ?
+                                  "bg-purple-600 text-white"
+                                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                               }`}>
                               {day}
                             </button>
@@ -510,7 +580,7 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
                   </div>
                 ))}
               </div>
-            )}
+            }
           </div>
         )}
 
@@ -537,15 +607,16 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
                   <button
                     key={time}
                     onClick={() => {
-                      const times = preferences.preferredTimes.includes(time)
-                        ? preferences.preferredTimes.filter((t) => t !== time)
+                      const times =
+                        preferences.preferredTimes.includes(time) ?
+                          preferences.preferredTimes.filter((t) => t !== time)
                         : [...preferences.preferredTimes, time];
                       updatePreference("preferredTimes", times);
                     }}
                     className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                      preferences.preferredTimes.includes(time)
-                        ? "bg-purple-600 text-white"
-                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      preferences.preferredTimes.includes(time) ?
+                        "bg-purple-600 text-white"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                     }`}>
                     {time}
                   </button>
@@ -649,15 +720,17 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
                             onClick={() =>
                               updateSubjectDifficulty(
                                 subject.subject || subject.name,
-                                level
+                                level,
                               )
                             }
                             className={`w-8 h-8 rounded-full font-semibold text-sm transition-all ${
-                              (preferences.subjectDifficulty[
-                                subject.subject || subject.name
-                              ] || 3) >= level
-                                ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white"
-                                : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                              (
+                                (preferences.subjectDifficulty[
+                                  subject.subject || subject.name
+                                ] || 3) >= level
+                              ) ?
+                                "bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                              : "bg-gray-200 text-gray-600 hover:bg-gray-300"
                             }`}>
                             {level}
                           </button>
@@ -687,7 +760,7 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
                     onChange={(e) =>
                       updatePreference(
                         "minSessionLength",
-                        parseInt(e.target.value)
+                        parseInt(e.target.value),
                       )
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
@@ -706,7 +779,7 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
                     onChange={(e) =>
                       updatePreference(
                         "maxSessionLength",
-                        parseInt(e.target.value)
+                        parseInt(e.target.value),
                       )
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
