@@ -1,402 +1,48 @@
-# StudyVibe
+## StudyVibe — Simple Overview
 
-A smart study scheduler and planner powered by AI. StudyVibe helps students create personalized study plans, manage timetables, and optimize their learning schedules using Google Gemini AI and OpenAI integration.
+StudyVibe is a lightweight study planner that helps students organize and track study sessions, create timetables, and generate structured study plans.
 
-## Features
+Features
 
-- **AI-Powered Study Plans**: Automatically generate personalized study plans based on subjects and exam dates
-- **Smart Timetable Management**: Create and manage study schedules with intelligent time slot allocation
-- **Schedule Parsing**: Upload and parse physical schedules (PDF, images) using AI
-- **Weekly Planning**: Visual calendar interface for weekly schedule management
-- **Progress Tracking**: Dashboard to monitor study progress and completion
-- **Motivational Features**: Daily quotes and notifications to stay motivated
-- **Responsive Design**: Works seamlessly on desktop and mobile devices
+- Personalized study plans
+- Weekly timetable view and editing
+- Create, update, and delete subjects and timetables
+- Progress tracking dashboard
+- Motivational quotes and simple notifications
 
-## Tech Stack
+Tech stack
 
-### Frontend
+- Frontend: React (Vite), Tailwind CSS, Context API, Axios
+- Backend: Node.js, Express, MongoDB (Mongoose), JWT authentication
 
-- **Framework**: React 18 with Vite
-- **Styling**: Tailwind CSS with PostCSS
-- **State Management**: Context API
-- **UI Components**: React Router, React Icons
-- **Calendar**: FullCalendar (React integration)
-- **Date Handling**: Day.js
-- **Authentication**: MongoDB with JWT tokens
-- **HTTP Client**: Axios with interceptors
+Quick start
 
-### Backend
+1. Install dependencies:
 
-- **Runtime**: Node.js 24.x
-- **Framework**: Express.js 4.x
-- **Database**: MongoDB with Mongoose ODM
-- **AI Services**:
-  - Google Gemini API for study plan generation
-  - OpenAI API for advanced text processing
-- **File Handling**: Multer for schedule uploads
-- **Development**: Nodemon for hot reloading
-- **Task Runner**: npm scripts with concurrently for parallel execution
-
-## Project Structure
-
-```
-study_vibe/
-├── frontend/                          # React frontend application
-│   ├── src/
-│   │   ├── components/               # Reusable UI components
-│   │   │   ├── Planner/             # Scheduling and planning components
-│   │   │   │   ├── AdvancedSchedulerForm.jsx
-│   │   │   │   ├── AdvancedSubjectInput.jsx
-│   │   │   │   ├── AICustomizer.jsx
-│   │   │   │   ├── ProgressDashboard.jsx
-│   │   │   │   ├── StudyCalendar.jsx
-│   │   │   │   ├── SubjectForm.jsx
-│   │   │   │   ├── Timetable.jsx
-│   │   │   │   └── WeeklyScheduleGrid.jsx
-│   │   │   └── Reusable/            # Shared components
-│   │   │       ├── Footer.jsx
-│   │   │       ├── MotivationalQuote.jsx
-│   │   │       ├── NotificationSettings.jsx
-│   │   │       └── Sidebar.jsx
-│   │   ├── pages/                    # Page components
-│   │   │   ├── Dashboard.jsx
-│   │   │   ├── Login.jsx
-│   │   │   ├── SignUp.jsx
-│   │   │   ├── Blog.jsx
-│   │   │   ├── BlogPost.jsx
-│   │   │   ├── Contact.jsx
-│   │   │   └── NotFound.jsx
-│   │   ├── hooks/                    # Custom React hooks
-│   │   │   ├── useAdvancedScheduler.js
-│   │   │   ├── useGeneratePlan.js
-│   │   │   ├── useLogin.js
-│   │   │   ├── useLogout.js
-│   │   │   ├── useSignup.js
-│   │   │   └── useSmartTimetable.js
-│   │   ├── services/                 # API and external services
-│   │   │   └── api.js
-│   │   ├── contexts/                 # Context providers
-│   │   │   └── authContext.jsx
-│   │   ├── utils/                    # Utility functions
-│   │   │   ├── advancedScheduler.js
-│   │   │   └── studyPlanGenerator.js
-│   │   ├── data/                     # Static data
-│   │   │   └── blogData.js
-│   │   ├── App.jsx
-│   │   ├── App.css
-│   │   └── main.jsx
-│   ├── public/                       # Static assets
-│   ├── package.json
-│   ├── vite.config.js               # Vite configuration
-│   ├── tailwind.config.js           # Tailwind CSS configuration
-│   ├── postcss.config.js            # PostCSS configuration
-│   └── vercel.json                  # Vercel deployment config
-│
-├── backend/                           # Express.js backend API
-│   ├── app/
-│   │   ├── main.js                  # Application entry point
-│   │   ├── controllers/             # Request handlers
-│   │   │   ├── auth.controller.js
-│   │   │   ├── planner.controller.js
-│   │   │   ├── schedule.controller.js
-│   │   │   ├── subject.controller.js
-│   │   │   └── timeTable.controller.js
-│   │   ├── db/                      # Database configuration
-│   │   │   └── connectToMongoDB.js
-│   │   ├── middleware/              # Express middleware
-│   │   │   ├── logging.js
-│   │   │   └── verifyToken.js
-│   │   ├── models/                  # Mongoose schemas
-│   │   │   ├── Subject.js
-│   │   │   └── Timetable.js
-│   │   ├── routes/                  # API route definitions
-│   │   │   ├── planner.route.js
-│   │   │   ├── schedule.route.js
-│   │   │   ├── subject.route.js
-│   │   │   └── timeTable.route.js
-│   │   ├── services/                # External service integrations
-│   │   │   ├── gemini_api.js
-│   │   │   ├── openai_api.js
-│   │   │   └── scheduleParser.js
-│   │   └── utils/                   # Helper functions
-│   │       └── studyPlanGenerator.js
-│   ├── uploads/                     # User uploaded files storage
-│   │   └── schedules/
-│   ├── package.json
-│   ├── render.yaml                  # Render.com deployment config
-│   └── .env.example                 # Environment variables template
-│
-├── package.json                      # Root package.json for monorepo
-└── README.md                         # This file
+```bash
+npm install
+cd backend && npm install
+cd ../frontend && npm install
 ```
 
-## Quick Start
+2. Copy environment template and set values:
 
-### Prerequisites
-
-- Node.js 24.x and npm 11.x
-- MongoDB Atlas account (or local MongoDB)
-- Google Gemini API key
-- OpenAI API key
-
-### Installation
-
-1. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/ShailavMalik/study_vibe.git
-   cd study_vibe
-   ```
-
-2. **Install root dependencies**
-
-   ```bash
-   npm install
-   ```
-
-3. **Backend setup**
-
-   ```bash
-   cd backend
-   npm install
-   cp .env.example .env
-   ```
-
-   Edit `.env` with your configuration:
-
-   ```env
-   PORT=3001
-   NODE_ENV=development
-   MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/studyvibe
-   JWT_SECRET=your_jwt_secret_key_here_change_in_production
-   JWT_EXPIRE=7d
-   GOOGLE_API_KEY=your_gemini_api_key
-   OPENAI_API_KEY=your_openai_api_key
-   ```
-
-4. **Frontend setup**
-
-   ```bash
-   cd ../frontend
-   npm install
-   ```
-
-5. **Start development servers**
-   ```bash
-   cd ..
-   npm run dev
-   ```
-
-This will start both frontend (http://localhost:5173) and backend (http://localhost:3001) in parallel.
-
-## API Endpoints
-
-### Health & Status
-
-**GET** `/`
-
-- Returns API information and available endpoints
-
-**GET** `/health`
-
-- Health check endpoint for monitoring services
-
-### Authentication
-
-**POST** `/api/auth/signup`
-
-- Register a new user account
-
-Request body:
-
-```json
-{
-  "email": "user@example.com",
-  "password": "password123",
-  "confirmPassword": "password123",
-  "displayName": "John Doe"
-}
+```bash
+cp backend/.env.example backend/.env
 ```
 
-Response:
+3. Start development (root npm script runs both servers if configured):
 
-```json
-{
-  "message": "User created successfully",
-  "user": {
-    "id": "user_id",
-    "email": "user@example.com",
-    "displayName": "John Doe",
-    "avatar": null
-  },
-  "token": "jwt_token_here"
-}
+```bash
+npm run dev
 ```
 
-**POST** `/api/auth/login`
+Where to look
 
-- Login with email and password
+- Frontend: `frontend/src` (pages, components, hooks)
+- Backend: `backend/app` (controllers, routes, models)
 
-Request body:
-
-```json
-{
-  "email": "user@example.com",
-  "password": "password123"
-}
-```
-
-Response:
-
-```json
-{
-  "message": "Login successful",
-  "user": {
-    "id": "user_id",
-    "email": "user@example.com",
-    "displayName": "John Doe",
-    "avatar": null
-  },
-  "token": "jwt_token_here"
-}
-```
-
-**POST** `/api/auth/logout`
-
-- Logout user (requires authentication)
-- Returns success message
-
-**GET** `/api/auth/me`
-
-- Get current authenticated user details (requires authentication)
-
-**PUT** `/api/auth/profile`
-
-- Update user profile (requires authentication)
-
-Request body:
-
-```json
-{
-  "displayName": "New Name",
-  "avatar": "url_to_avatar"
-}
-```
-
-**POST** `/api/auth/change-password`
-
-- Change user password (requires authentication)
-
-Request body:
-
-```json
-{
-  "oldPassword": "current_password",
-  "newPassword": "new_password",
-  "confirmPassword": "new_password"
-}
-```
-
-### Study Planner
-
-**POST** `/api/planner`
-
-- Generate a personalized study plan
-
-Request body:
-
-```json
-{
-  "subjects": [
-    {
-      "name": "Mathematics",
-      "examDate": "2025-11-15",
-      "hours": 20
-    }
-  ],
-  "dailyHours": 3
-}
-```
-
-### Timetable Management
-
-**GET** `/api/timetable`
-
-- Retrieve all timetables for a user
-
-**POST** `/api/timetable`
-
-- Create a new timetable
-
-**PUT** `/api/timetable/:id`
-
-- Update an existing timetable
-
-**DELETE** `/api/timetable/:id`
-
-- Remove a timetable
-
-### Subject Management
-
-**GET** `/api/subject`
-
-- Get all subjects
-
-**POST** `/api/subject`
-
-- Create a new subject
-
-**PUT** `/api/subject/:id`
-
-- Update a subject
-
-**DELETE** `/api/subject/:id`
-
-- Delete a subject
-
-### Schedule Processing
-
-**POST** `/api/schedule/upload`
-
-- Upload a schedule file (PDF, image, etc.)
-- Content-Type: multipart/form-data
-
-**POST** `/api/schedule/parse`
-
-- Parse uploaded schedule data using AI
-
-## Database Models
-
-### User Model
-
-Stores user account information and authentication credentials.
-
-**Fields:**
-
-- `email` (String, required, unique) - User email address
-- `password` (String, required) - Hashed password (bcryptjs)
-- `displayName` (String, default) - User's display name
-- `avatar` (String, default) - Profile avatar URL
-- `isActive` (Boolean, default: true) - Account status
-- `emailVerified` (Boolean, default: false) - Email verification status
-- `lastLogin` (Date, default: null) - Last login timestamp
-- `createdAt` (Date) - Auto-generated timestamp
-- `updatedAt` (Date) - Auto-generated timestamp
-
-### Subject Model
-
-Stores information about subjects the user needs to study.
-
-**Fields:**
-
-- `name` (String, required) - Subject name
-- `examDate` (Date, required) - Exam date
-- `hours` (Number, required) - Total study hours needed
-- `userId` (ObjectId, required) - User reference
-- `createdAt` (Date) - Auto-generated timestamp
-- `updatedAt` (Date) - Auto-generated timestamp
-
-### Timetable Model
+If you want a more detailed API reference or deployment notes, tell me which sections to expand.
 
 Manages study schedules with time slots.
 

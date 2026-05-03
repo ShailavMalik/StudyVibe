@@ -187,7 +187,9 @@ function Dashboard() {
               <span className="mr-3 text-2xl">👋</span>
               <div className="flex flex-col leading-tight">
                 <span className="text-xs opacity-90">Welcome</span>
-                <span className="font-semibold text-sm md:text-base">{user.name || user.displayName || user.email}</span>
+                <span className="font-semibold text-sm md:text-base">
+                  {user.name || user.displayName || user.email}
+                </span>
               </div>
             </div>
           )}
