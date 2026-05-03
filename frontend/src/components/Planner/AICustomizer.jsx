@@ -8,7 +8,6 @@ export default function AICustomizer({
 }) {
   const [customPrompt, setCustomPrompt] = useState("");
   const [showPromptInput, setShowPromptInput] = useState(true);
-  const [useProModel, setUseProModel] = useState(false);
   const { loading, error, generateSmartTimetable } = useSmartTimetable();
 
   const handleSmartGenerate = async () => {
@@ -17,12 +16,10 @@ export default function AICustomizer({
       return;
     }
 
-    const modelType = useProModel ? "pro" : "flash";
     const smartPlan = await generateSmartTimetable(
       subjects,
       availableHours,
       customPrompt,
-      modelType
     );
     if (smartPlan && onSmartPlanGenerated) {
       onSmartPlanGenerated(smartPlan);
@@ -69,35 +66,16 @@ export default function AICustomizer({
               rows={4}
             />
 
-            {/* Think More Toggle */}
-            <div className="flex items-center gap-3 pb-2">
-              <button
-                onClick={() => setUseProModel(!useProModel)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 transform hover:scale-105 ${
-                  useProModel
-                    ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-300"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-md"
-                }`}>
-                <span className={useProModel ? "animate-bounce" : ""}>🧠</span>
-                <span>Think More</span>
-              </button>
-              {useProModel && (
-                <span className="text-xs text-purple-600 font-medium animate-fade-in">
-                  Using Pro model for detailed analysis
-                </span>
-              )}
-            </div>
-
             {/* Main Generate Button */}
             <button
               onClick={handleSmartGenerate}
               disabled={loading}
               className={`relative w-full py-3 px-4 rounded-xl font-medium text-white transition-all duration-300 transform hover:scale-[1.02] ${
-                loading
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg hover:shadow-2xl shadow-blue-300 hover:shadow-purple-400"
+                loading ?
+                  "bg-gray-400 cursor-not-allowed"
+                : "bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg hover:shadow-2xl shadow-blue-300 hover:shadow-purple-400"
               }`}>
-              {loading ? (
+              {loading ?
                 <span className="flex items-center justify-center gap-2">
                   <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
                     <circle
@@ -115,16 +93,13 @@ export default function AICustomizer({
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     />
                   </svg>
-                  <span className="animate-pulse">
-                    {useProModel ? "Thinking deeply..." : "Generating..."}
-                  </span>
+                  <span className="animate-pulse">Generating...</span>
                 </span>
-              ) : (
-                <span className="flex items-center justify-center gap-2">
+              : <span className="flex items-center justify-center gap-2">
                   <span className="animate-pulse">✨</span>
                   Generate Smart Timetable
                 </span>
-              )}
+              }
             </button>
 
             {/* Error Display */}

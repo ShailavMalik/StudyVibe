@@ -77,8 +77,7 @@ JWT_SECRET=your_jwt_secret_key_here_change_in_production
 JWT_EXPIRE=7d
 
 # AI Services
-GOOGLE_API_KEY=your_gemini_api_key
-OPENAI_API_KEY=your_openai_api_key
+GROQ_API_KEY=your_groq_api_key
 
 # CORS (optional)
 CORS_ORIGIN=http://localhost:5173
@@ -343,8 +342,7 @@ When contributing code:
 
 ## Acknowledgments
 
-- Google Gemini API for AI study plan generation
-- OpenAI for advanced text processing
+- GROQ (console.groq.com) for AI study plan generation
 - FullCalendar for calendar functionality
 - Tailwind CSS for styling
 - Vite for frontend tooling

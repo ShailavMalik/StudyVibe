@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useContext, useEffect } from "react";
 import { FaBell, FaTimes, FaExclamationCircle } from "react-icons/fa";
+import { AuthContext } from "../../contexts/authContext";
+import { api } from "../../services/api";
 
 // Notification settings component
-// Currently under development - basic email subscription form
+// Integrates with backend email service using Nodemailer
 const NotificationSettings = ({ isOpen, onClose }) => {
+  const { user } = useContext(AuthContext);
   const [email, setEmail] = useState("");
   const [preferences, setPreferences] = useState({
     studyReminders: true,
@@ -13,6 +16,43 @@ const NotificationSettings = ({ isOpen, onClose }) => {
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  // Load user's existing preferences on mount
+  useEffect(() => {
+    if (isOpen && user) {
+      loadPreferences();
+    }
+  }, [isOpen, user]);
+
+  const loadPreferences = async () => {
+    try {
+      setIsInitializing(true);
+      const response = await api.get("/api/notifications/preferences");
+
+      if (response.data) {
+        setEmail(response.data.notificationEmail || user?.email || "");
+        if (response.data.notificationPreferences) {
+          setPreferences({
+            studyReminders:
+              response.data.notificationPreferences.studyReminders ?? true,
+            examAlerts:
+              response.data.notificationPreferences.examAlerts ?? true,
+            weeklyDigest:
+              response.data.notificationPreferences.weeklyDigest ?? false,
+            motivationalQuotes:
+              response.data.notificationPreferences.motivationalQuotes ?? true,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error loading preferences:", error);
+      // Set defaults if load fails
+      setEmail(user?.email || "");
+    } finally {
+      setIsInitializing(false);
+    }
+  };
 
   // Handle email input change
   const handleEmailChange = (e) => {
@@ -28,7 +68,7 @@ const NotificationSettings = ({ isOpen, onClose }) => {
     }));
   };
 
-  // Handle form submission (placeholder for future backend integration)
+  // Handle form submission - save preferences and send test email
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -40,21 +80,41 @@ const NotificationSettings = ({ isOpen, onClose }) => {
 
     setLoading(true);
 
-    // Simulate API call (replace with actual backend call later)
-    setTimeout(() => {
-      console.log("Notification preferences saved:", {
-        email,
-        preferences,
+    try {
+      // Save preferences to backend
+      const saveResponse = await api.put("/api/notifications/preferences", {
+        notificationEmail: email,
+        preferences: preferences,
       });
 
-      setMessage("Settings saved! (Feature under development)");
-      setLoading(false);
+      if (saveResponse.data) {
+        // Send test email to confirm configuration
+        const testResponse = await api.post("/api/notifications/test-email");
 
-      // Auto-close message after 3 seconds
-      setTimeout(() => {
-        setMessage("");
-      }, 3000);
-    }, 1000);
+        if (testResponse.data) {
+          setMessage(
+            `✅ Settings saved! Test email sent to ${email}. Check your inbox!`,
+          );
+
+          // Auto-close message and modal after success
+          setTimeout(() => {
+            setMessage("");
+            setTimeout(() => {
+              onClose();
+            }, 1500);
+          }, 3000);
+        }
+      }
+    } catch (error) {
+      console.error("Error saving preferences:", error);
+      const errorMsg =
+        error.response?.data?.error ||
+        error.message ||
+        "Failed to save preferences";
+      setMessage(`❌ ${errorMsg}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Don't render if not open
@@ -76,12 +136,6 @@ const NotificationSettings = ({ isOpen, onClose }) => {
             <FaBell size={24} />
             <h2 className="text-2xl font-bold">Notification Settings</h2>
           </div>
-
-          {/* Under Development Badge */}
-          <div className="inline-flex items-center gap-2 bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-sm font-semibold">
-            <FaExclamationCircle />
-            Under Development
-          </div>
         </div>
 
         {/* Form Content */}
@@ -97,10 +151,11 @@ const NotificationSettings = ({ isOpen, onClose }) => {
               onChange={handleEmailChange}
               placeholder="your.email@example.com"
               className="input input-bordered w-full"
+              disabled={isInitializing}
               required
             />
             <p className="text-xs text-gray-500 mt-1">
-              We'll send notifications to this email
+              All notifications will be sent to this email
             </p>
           </div>
 
@@ -118,6 +173,7 @@ const NotificationSettings = ({ isOpen, onClose }) => {
                   checked={preferences.studyReminders}
                   onChange={() => handlePreferenceChange("studyReminders")}
                   className="checkbox checkbox-primary mt-1"
+                  disabled={isInitializing}
                 />
                 <div className="flex-1">
                   <div className="font-medium text-gray-800">
@@ -136,6 +192,7 @@ const NotificationSettings = ({ isOpen, onClose }) => {
                   checked={preferences.examAlerts}
                   onChange={() => handlePreferenceChange("examAlerts")}
                   className="checkbox checkbox-primary mt-1"
+                  disabled={isInitializing}
                 />
                 <div className="flex-1">
                   <div className="font-medium text-gray-800">Exam Alerts</div>
@@ -152,6 +209,7 @@ const NotificationSettings = ({ isOpen, onClose }) => {
                   checked={preferences.weeklyDigest}
                   onChange={() => handlePreferenceChange("weeklyDigest")}
                   className="checkbox checkbox-primary mt-1"
+                  disabled={isInitializing}
                 />
                 <div className="flex-1">
                   <div className="font-medium text-gray-800">Weekly Digest</div>
@@ -168,6 +226,7 @@ const NotificationSettings = ({ isOpen, onClose }) => {
                   checked={preferences.motivationalQuotes}
                   onChange={() => handlePreferenceChange("motivationalQuotes")}
                   className="checkbox checkbox-primary mt-1"
+                  disabled={isInitializing}
                 />
                 <div className="flex-1">
                   <div className="font-medium text-gray-800">
@@ -181,25 +240,11 @@ const NotificationSettings = ({ isOpen, onClose }) => {
             </div>
           </div>
 
-          {/* Info Box */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex gap-3">
-              <FaExclamationCircle className="text-blue-600 mt-1 flex-shrink-0" />
-              <div className="text-sm text-blue-800">
-                <p className="font-semibold mb-1">Feature Coming Soon!</p>
-                <p className="text-xs">
-                  Email notifications are currently under development. Your
-                  preferences will be saved for when this feature launches.
-                </p>
-              </div>
-            </div>
-          </div>
-
           {/* Message Display */}
           {message && (
             <div
               className={`alert ${
-                message.includes("valid") ? "alert-error" : "alert-success"
+                message.includes("❌") ? "alert-error" : "alert-success"
               }`}>
               <span className="text-sm">{message}</span>
             </div>
@@ -209,15 +254,17 @@ const NotificationSettings = ({ isOpen, onClose }) => {
           <div className="flex gap-3">
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || isInitializing}
               className="btn btn-primary flex-1">
-              {loading ? (
+              {loading ?
                 <span className="loading loading-spinner loading-sm"></span>
-              ) : (
-                "Save Preferences"
-              )}
+              : "Save Preferences"}
             </button>
-            <button type="button" onClick={onClose} className="btn btn-outline">
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn btn-outline"
+              disabled={loading}>
               Cancel
             </button>
           </div>

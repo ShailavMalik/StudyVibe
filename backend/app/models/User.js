@@ -38,6 +38,28 @@ const UserSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
+    notificationPreferences: {
+      enabled: {
+        type: Boolean,
+        default: true,
+      },
+      studyReminders: {
+        type: Boolean,
+        default: true,
+      },
+      examAlerts: {
+        type: Boolean,
+        default: true,
+      },
+      weeklyDigest: {
+        type: Boolean,
+        default: false,
+      },
+      motivationalQuotes: {
+        type: Boolean,
+        default: true,
+      },
+    },
     avatar: {
       type: String,
       default: null,
@@ -59,6 +81,15 @@ const UserSchema = new mongoose.Schema(
       default: Date.now,
     },
     lastLogin: {
+      type: Date,
+      default: null,
+    },
+    streak: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    lastStudyDate: {
       type: Date,
       default: null,
     },

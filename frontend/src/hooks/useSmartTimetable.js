@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { api } from "../services/api";
 
 const useSmartTimetable = () => {
   const [loading, setLoading] = useState(false);
@@ -8,7 +9,7 @@ const useSmartTimetable = () => {
     subjects,
     availableHoursPerDay,
     customPrompt = "",
-    modelType = "flash"
+    modelType = "flash",
   ) => {
     try {
       setLoading(true);
@@ -17,33 +18,18 @@ const useSmartTimetable = () => {
       // Defensive: ensure subjects is always an array
       const safeSubjects = Array.isArray(subjects) ? subjects : [];
 
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}api/timetable/generate-smart`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            subjects: safeSubjects.map((s) => ({
-              name: s.subject,
-              examDate: s.examDate,
-            })),
-            availableHoursPerDay: Number(availableHoursPerDay),
-            customPrompt: customPrompt.trim(),
-            modelType: modelType,
-          }),
-        }
-      );
+      const payload = {
+        subjects: safeSubjects.map((s) => ({
+          name: s.subject,
+          examDate: s.examDate,
+        })),
+        availableHoursPerDay: Number(availableHoursPerDay),
+        customPrompt: customPrompt.trim(),
+        modelType: modelType,
+      };
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.error || "Failed to generate smart timetable"
-        );
-      }
-
-      const data = await response.json();
+      const resp = await api.post("/api/timetable/generate-smart", payload);
+      const data = resp.data;
       console.log("Generated smart timetable:", data);
 
       return data;

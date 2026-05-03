@@ -29,13 +29,33 @@ const getSubjectColor = (() => {
   };
 })();
 
+const normalizeEntries = (entries) => {
+  if (Array.isArray(entries)) return entries;
+
+  if (entries && typeof entries === "object") {
+    // Support object maps like { subject: hours } or a single session object
+    if (Object.values(entries).every((value) => typeof value === "number")) {
+      return Object.entries(entries).map(([subject, hours]) => ({
+        subject,
+        hours,
+      }));
+    }
+
+    return [entries];
+  }
+
+  return [];
+};
+
 const convertPlanToEvents = (plan) => {
   const events = [];
 
-  Object.entries(plan).forEach(([date, entries]) => {
+  Object.entries(plan || {}).forEach(([date, rawEntries]) => {
+    const entries = normalizeEntries(rawEntries);
+
     // Check if this is an Advanced Plan (has preferredStartHour) or Quick Plan
     const isAdvancedPlan = entries.some(
-      (entry) => entry.preferredStartHour !== undefined
+      (entry) => entry.preferredStartHour !== undefined,
     );
 
     let currentTime = dayjs(date, "DD-MMMM-YYYY").hour(8).minute(0).second(0); // Default start at 8:00 AM for Quick Plan
@@ -98,8 +118,10 @@ const convertPlanToEvents = (plan) => {
 // Get unique subjects from plan for legend
 const getUniqueSubjects = (plan) => {
   const subjects = new Set();
-  Object.values(plan).forEach((entries) => {
-    entries.forEach((entry) => subjects.add(entry.subject));
+  Object.values(plan || {}).forEach((entries) => {
+    normalizeEntries(entries).forEach((entry) => {
+      if (entry?.subject) subjects.add(entry.subject);
+    });
   });
   return Array.from(subjects);
 };
@@ -118,8 +140,10 @@ export default function StudyCalendar({ studyPlan }) {
     );
   }
 
-  const events = convertPlanToEvents(studyPlan);
-  const uniqueSubjects = getUniqueSubjects(studyPlan);
+  const normalizedStudyPlan =
+    studyPlan && typeof studyPlan === "object" ? studyPlan : {};
+  const events = convertPlanToEvents(normalizedStudyPlan);
+  const uniqueSubjects = getUniqueSubjects(normalizedStudyPlan);
 
   // Handle event mouse enter
   const handleEventMouseEnter = (info) => {
@@ -273,11 +297,11 @@ export default function StudyCalendar({ studyPlan }) {
                   </span>
                   <span
                     className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                      hoveredEvent.extendedProps.difficulty === "Hard"
-                        ? "bg-red-100 text-red-700"
-                        : hoveredEvent.extendedProps.difficulty === "Medium"
-                        ? "bg-yellow-100 text-yellow-700"
-                        : "bg-green-100 text-green-700"
+                      hoveredEvent.extendedProps.difficulty === "Hard" ?
+                        "bg-red-100 text-red-700"
+                      : hoveredEvent.extendedProps.difficulty === "Medium" ?
+                        "bg-yellow-100 text-yellow-700"
+                      : "bg-green-100 text-green-700"
                     }`}>
                     {hoveredEvent.extendedProps.difficulty}
                   </span>

@@ -12,6 +12,7 @@ import ProgressDashboard from "../components/Planner/ProgressDashboard";
 import AdvancedSubjectInput from "../components/Planner/AdvancedSubjectInput";
 import { useContext } from "react";
 import { AuthContext } from "../contexts/authContext";
+import { api } from "../services/api";
 
 function Dashboard() {
   const { user } = useContext(AuthContext);
@@ -23,6 +24,17 @@ function Dashboard() {
   const [studyHoursAvailable, setStudyHoursAvailable] = useState(6); // For Advanced Plan
   const [schedulerMode, setSchedulerMode] = useState("quick"); // "quick" or "advanced"
   const { loading, generatePlan } = useGeneratePlan();
+
+  const persistPlanToMongo = async (plan) => {
+    if (!plan || !user) return;
+
+    try {
+      const response = await api.post("/api/timetable/save", { plan });
+      console.log("💾 Timetable saved to MongoDB", response.data);
+    } catch (error) {
+      console.error("Failed to save timetable to MongoDB:", error);
+    }
+  };
 
   /**
    * Load cached study plans from localStorage on component mount
@@ -79,17 +91,50 @@ function Dashboard() {
       localStorage.setItem("quickPlanCache", JSON.stringify(plan));
       localStorage.setItem("quickPlanSubjects", JSON.stringify(subjectsData));
       localStorage.setItem("quickPlanHours", hours.toString());
+      await persistPlanToMongo(plan);
       console.log("💾 Quick Plan cached");
     }
   };
 
-  const handleSmartPlanGenerated = (smartPlan) => {
-    setQuickPlan(smartPlan);
+  const handleSmartPlanGenerated = async (smartPlan) => {
+    // Normalize AI responses - older responses may be wrapped
+    const normalize = (plan) => {
+      if (!plan) return null;
+      // If backend returned wrapper { fallback: true, plan, reason }
+      if (plan.plan) return plan.plan;
+      // If backend returned { schedule: [...] } or similar
+      if (plan.schedule) {
+        // If schedule is already an object map, return it
+        if (typeof plan.schedule === "object" && !Array.isArray(plan.schedule))
+          return plan.schedule;
+        // If it's an array of items with dates, convert to map
+        if (Array.isArray(plan.schedule)) {
+          const map = {};
+          plan.schedule.forEach((it) => {
+            const date = it.date || it.day || "Unknown";
+            if (!map[date]) map[date] = [];
+            map[date].push(it);
+          });
+          return map;
+        }
+      }
+      // If plan is an object already mapping dates to sessions
+      if (typeof plan === "object" && !Array.isArray(plan)) return plan;
+      return null;
+    };
 
-    // Cache the AI-generated smart plan
-    if (smartPlan) {
+    const normalized = normalize(smartPlan);
+    if (normalized) {
+      setQuickPlan(normalized);
+      localStorage.setItem("quickPlanCache", JSON.stringify(normalized));
+      await persistPlanToMongo(normalized);
+      console.log("💾 Smart Quick Plan cached (normalized)");
+    } else {
+      // fallback: store raw plan but don't break UI
+      setQuickPlan(smartPlan);
       localStorage.setItem("quickPlanCache", JSON.stringify(smartPlan));
-      console.log("💾 Smart Quick Plan cached");
+      await persistPlanToMongo(smartPlan);
+      console.log("💾 Smart Quick Plan cached (raw)");
     }
   };
 
@@ -126,6 +171,7 @@ function Dashboard() {
         "studyHoursAvailable",
         studyHoursAvailable.toString(),
       );
+      await persistPlanToMongo(plan);
       console.log("💾 Advanced Plan cached");
     }
   };

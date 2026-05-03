@@ -8,17 +8,26 @@
  */
 
 import mongoose from "mongoose";
+import dns from "dns";
 
 /**
  * Establishes connection to MongoDB database
  *
  * @async
  * @function connectToMongoDB
- * @returns {Promise<void>} Resolves when connection is successful
+ * @returns {Promise<void>} Resolves when successful
  * @throws {Error} Logs error if connection fails but doesn't crash the app
  */
 const connectToMongoDB = async () => {
   try {
+    // Use Google's public DNS to resolve MongoDB SRV records
+    // Fixes "querySrv ECONNREFUSED" errors on corporate/restricted networks
+    dns.setServers(["8.8.8.8", "8.8.4.4"]);
+
+    if (!process.env.MONGODB_URI) {
+      throw new Error("MONGODB_URI is not configured");
+    }
+
     // Connect using the URI from environment variables
     await mongoose.connect(process.env.MONGODB_URI, {
       serverSelectionTimeoutMS: 30000, // Increased from 10s to 30s
@@ -31,9 +40,8 @@ const connectToMongoDB = async () => {
     console.log("✅ MongoDB connected successfully");
     console.log(`📊 Database: ${mongoose.connection.name}`);
   } catch (error) {
-    // Log error but don't crash - some features might work without DB
     console.error("❌ MongoDB connection failed:", error.message);
-    console.log("⚠️  Some features may not work without database connection");
+    throw error;
   }
 };
 

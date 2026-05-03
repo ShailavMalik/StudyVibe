@@ -1,5 +1,5 @@
 import { useState } from "react";
-import api from "../services/api";
+import { api } from "../services/api";
 
 /**
  * Custom hook for advanced scheduler functionality
@@ -28,7 +28,7 @@ const useAdvancedScheduler = () => {
         },
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round(
-            (progressEvent.loaded * 100) / progressEvent.total
+            (progressEvent.loaded * 100) / progressEvent.total,
           );
           setUploadProgress(percentCompleted);
         },

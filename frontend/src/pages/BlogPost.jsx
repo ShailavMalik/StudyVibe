@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { getBlogPost, blogPosts } from "../data/blogData";
 import Footer from "../components/Reusable/Footer";
+import { FaHeart } from "react-icons/fa";
 
 // Individual blog post detail page
 // Shows full blog post content with navigation
@@ -8,6 +10,7 @@ const BlogPost = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const post = getBlogPost(id);
+  const [liked, setLiked] = useState(false);
 
   // If post not found, show error
   if (!post) {
@@ -102,6 +105,17 @@ const BlogPost = () => {
             </svg>
             <span>{post.readTime}</span>
           </div>
+          <button
+            type="button"
+            onClick={() => setLiked((value) => !value)}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-colors ${
+              liked ?
+                "bg-red-100 text-red-600"
+              : "bg-white text-gray-700 border border-gray-200 hover:bg-red-50 hover:text-red-600"
+            }`}>
+            <FaHeart className={liked ? "text-red-500" : ""} />
+            {liked ? post.likes + 1 : post.likes} Likes
+          </button>
         </div>
 
         {/* Featured Image */}

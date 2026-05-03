@@ -1,5 +1,5 @@
 import generateStudyPlan from "../utils/studyPlanGenerator.js";
-import { generateAdvancedSchedule } from "../services/gemini_api.js";
+import { generateAdvancedSchedule } from "../services/groq_api.js";
 // import generateStudyPlanByOpenAI from "../services/openaiService.js";
 
 const plannerController = async (req, res) => {
@@ -42,7 +42,7 @@ export const advancedPlannerController = async (req, res) => {
     console.log(
       "Generating advanced schedule for:",
       subjects.length,
-      "subjects"
+      "subjects",
     );
 
     // Generate advanced schedule with AI

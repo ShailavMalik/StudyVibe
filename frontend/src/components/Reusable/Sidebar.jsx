@@ -120,9 +120,6 @@ const Sidebar = () => {
             onClick={openNotifications}>
             <FaBell className="text-primary" />
             Notifications
-            <span className="absolute top-1 right-1 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-              DEV
-            </span>
           </button>
           <button
             className="btn w-full btn-ghost justify-start gap-3 text-lg"

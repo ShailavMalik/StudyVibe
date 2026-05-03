@@ -18,12 +18,20 @@ import authRoute from "./routes/auth.route.js";
 import plannerRoute from "./routes/planner.route.js";
 import timetableRoute from "./routes/timeTable.route.js";
 import scheduleRoute from "./routes/schedule.route.js";
+import sessionRoute from "./routes/session.route.js";
+import dashboardRoute from "./routes/dashboard.route.js";
+import adaptivePlanRoute from "./routes/adaptivePlan.route.js";
+import planRoute from "./routes/plan.route.js";
+import notificationRoute from "./routes/notification.route.js";
+import blogRoute from "./routes/blog.route.js";
+import contactRoute from "./routes/contact.route.js";
 
 // Import middleware
 import LoggingMiddleware from "./middleware/logging.js";
 
-// Uncomment when MongoDB integration is needed
+// Import services
 import connectToMongoDB from "./db/connectToMongoDB.js";
+import { verifyEmailConfig } from "./services/emailService.js";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -72,6 +80,13 @@ app.use("/api/auth", authRoute); // Authentication endpoints (signup, login, etc
 app.use("/api/planner", plannerRoute); // Study planner generation endpoints
 app.use("/api/timetable", timetableRoute); // Timetable management endpoints
 app.use("/api/schedule", scheduleRoute); // Schedule upload and parsing endpoints
+app.use("/api/session", sessionRoute); // Session completion endpoint
+app.use("/api/dashboard", dashboardRoute); // Dashboard progress endpoint
+app.use("/api/adaptive-plan", adaptivePlanRoute); // Adaptive plan endpoint
+app.use("/api/plan", planRoute); // Backwards-compatible plan endpoints
+app.use("/api/notifications", notificationRoute); // Notification and email endpoints
+app.use("/api/blogs", blogRoute); // Blog endpoints for exam prep articles
+app.use("/api/contact", contactRoute); // Contact form email submission endpoint
 
 /**
  * Root Endpoint
@@ -88,6 +103,9 @@ app.get("/", (req, res) => {
       planner: "/api/planner",
       timetable: "/api/timetable",
       schedule: "/api/schedule",
+      session: "/api/session",
+      dashboard: "/api/dashboard",
+      adaptivePlan: "/api/adaptive-plan",
     },
   });
 });
@@ -112,15 +130,29 @@ app.get("/health", (req, res) => {
  */
 const PORT = process.env.PORT || 3001;
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server started successfully!`);
-  console.log(`📡 Listening on port ${PORT}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
+// Start the Express server after MongoDB is connected
+const startServer = async () => {
+  await connectToMongoDB();
 
-  // Connect to MongoDB when ready
-  connectToMongoDB();
+  // Verify email configuration
+  const emailConfigured = await verifyEmailConfig();
 
-  if (process.env.NODE_ENV === "development") {
-    console.log(`🔗 Local URL: http://localhost:${PORT}`);
-  }
+  app.listen(PORT, () => {
+    console.log(`🚀 Server started successfully!`);
+    console.log(`📡 Listening on port ${PORT}`);
+    console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
+
+    if (process.env.NODE_ENV === "development") {
+      console.log(`🔗 Local URL: http://localhost:${PORT}`);
+    }
+
+    if (emailConfigured) {
+      console.log(`📧 Email notifications: ENABLED`);
+    }
+  });
+};
+
+startServer().catch((error) => {
+  console.error("❌ Failed to start server:", error.message);
+  process.exit(1);
 });
