@@ -1,0 +1,8 @@
+{
+  "name": "study_vibe-railpack-plan",
+  "description": "Custom railpack plan: build and start backend subdirectory to avoid root lockfile mismatch",
+  "steps": {
+    "install": "npm --prefix backend install --no-audit --no-fund",
+    "start": "npm --prefix backend start"
+  }
+}
