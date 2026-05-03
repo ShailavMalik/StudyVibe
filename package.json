@@ -7,6 +7,7 @@
     "npm": "11.x"
   },
   "scripts": {
+    "start": "npm --prefix backend start",
     "dev": "concurrently \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
     "start:backend": "npm --prefix backend start",
     "install:backend": "npm --prefix backend install"
