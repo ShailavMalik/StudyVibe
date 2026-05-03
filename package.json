@@ -2,10 +2,6 @@
   "name": "study_vibe",
   "private": true,
   "version": "1.0.0",
-  "workspaces": [
-    "backend",
-    "frontend"
-  ],
   "engines": {
     "node": "24.x",
     "npm": "11.x"
@@ -16,6 +12,20 @@
     "start:backend": "npm --prefix backend start",
     "install:backend": "npm --prefix backend install",
     "postinstall": "npm --prefix backend install && npm --prefix frontend install"
+  },
+  "dependencies": {
+    "@google/genai": "^1.27.0",
+    "@google/generative-ai": "^0.24.1",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dayjs": "^1.11.13",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.0",
+    "mongoose": "^8.15.0",
+    "multer": "^2.0.2",
+    "nodemon": "^3.1.10",
+    "openai": "^6.7.0"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
