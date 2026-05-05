@@ -41,14 +41,24 @@ const app = express();
 
 /**
  * CORS Configuration
- * Allows requests from any origin - useful during development
- * TODO: In production, restrict this to specific frontend domains
+ * Restricts requests to specified frontend domains
  */
-const allowedOrigin = process.env.FRONTEND_URL || "*";
+const allowedOrigins = (process.env.FRONTEND_URL || "http://localhost:3000")
+  .split(",")
+  .map((url) => url.trim());
 
 app.use(
   cors({
-    origin: allowedOrigin,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl requests, etc.)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization", "Origin", "Accept"],
