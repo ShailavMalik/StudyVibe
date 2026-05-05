@@ -31,7 +31,8 @@ export const getDashboard = async (req, res) => {
 export const logStudySession = async (req, res) => {
   try {
     const userId = req.userId;
-    const { subject, date, completedHours, plannedHours } = req.body;
+    const { subject, date, completedHours, plannedHours, sessionKey } =
+      req.body;
 
     if (!userId || !subject) {
       return res.status(400).json({ error: "Missing userId or subject" });
@@ -40,6 +41,7 @@ export const logStudySession = async (req, res) => {
     // Log the study session
     const sessionLog = await logStudySessionService({
       userId,
+      sessionKey,
       subject,
       date: date || new Date(),
       completedHours: Number(completedHours) || 0,

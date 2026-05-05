@@ -1,4 +1,21 @@
+import mongoose from "mongoose";
 import Blog from "../models/Blog.js";
+
+const findBlogByIdParam = async (blogId) => {
+  if (mongoose.isValidObjectId(blogId)) {
+    const blogByObjectId = await Blog.findById(blogId);
+    if (blogByObjectId) {
+      return blogByObjectId;
+    }
+  }
+
+  const numericId = Number(blogId);
+  if (!Number.isNaN(numericId)) {
+    return Blog.findOne({ id: numericId });
+  }
+
+  return null;
+};
 
 /**
  * Get all blogs
@@ -17,7 +34,7 @@ export const getAllBlogs = async (req, res) => {
  */
 export const getBlogById = async (req, res) => {
   try {
-    const blog = await Blog.findById(req.params.id);
+    const blog = await findBlogByIdParam(req.params.id);
     if (!blog) {
       return res.status(404).json({ error: "Blog not found" });
     }
@@ -39,7 +56,7 @@ export const toggleBlogLike = async (req, res) => {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    const blog = await Blog.findById(blogId);
+    const blog = await findBlogByIdParam(blogId);
     if (!blog) {
       return res.status(404).json({ error: "Blog not found" });
     }

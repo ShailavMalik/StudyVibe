@@ -37,7 +37,17 @@ const Blog = () => {
   const fetchBlogsFromAPI = async () => {
     try {
       const response = await api.get("/api/blogs");
-      const blogList = response.data;
+      let blogList = response.data;
+
+      if ((!blogList || blogList.length === 0) && import.meta.env.DEV) {
+        try {
+          await api.post("/api/blogs/init/seed", { blogs: blogPosts });
+          const seededResponse = await api.get("/api/blogs");
+          blogList = seededResponse.data;
+        } catch (seedError) {
+          console.warn("Failed to seed blogs in dev:", seedError);
+        }
+      }
 
       // Create a likes map from API response
       const likesMap = {};

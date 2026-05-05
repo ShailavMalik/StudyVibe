@@ -77,6 +77,7 @@ function aggregateSessionsBySubject(sessions = []) {
 export async function logStudySession(data) {
   const {
     userId,
+    sessionKey,
     subject,
     date,
     plannedHours = 0,
@@ -102,11 +103,18 @@ export async function logStudySession(data) {
       Number(typeof completedHours === "number" ? completedHours : plannedHours)
     );
 
-  const existingLog = await StudyLog.findOne({
+  const lookup = {
     userId,
-    subject,
     date: sessionDate,
-  });
+  };
+
+  if (sessionKey) {
+    lookup.sessionKey = sessionKey;
+  } else {
+    lookup.subject = subject;
+  }
+
+  const existingLog = await StudyLog.findOne(lookup);
 
   if (existingLog) {
     existingLog.plannedHours = Number(
@@ -114,12 +122,16 @@ export async function logStudySession(data) {
     );
     existingLog.completedHours = effectiveCompletedHours;
     existingLog.skipped = Boolean(skipped);
+    if (sessionKey) {
+      existingLog.sessionKey = sessionKey;
+    }
     await existingLog.save();
     return existingLog;
   }
 
   return StudyLog.create({
     userId,
+    sessionKey: sessionKey || undefined,
     subject,
     date: sessionDate,
     plannedHours: Number(plannedHours || 0),
@@ -187,12 +199,29 @@ export function generateAdaptivePlan({
   totalHours = 0,
 } = {}) {
   const today = dayjs().startOf("day");
-  const normalizedSubjects = subjects.map((subject) => {
+
+  // Helper to detect non-study labels from CSVs (breaks/meals/etc.)
+  const nonStudyPattern =
+    /\b(break|lunch|dinner|meal|coffee|breakfast|snack|self study|self-study|study time|free time|general revision)\b/i;
+  const normalizeSubjectInput = (subject) => {
     if (typeof subject === "string") {
       return { name: subject };
     }
-
     return subject || {};
+  };
+
+  // Normalize and filter out obvious non-study labels
+  const normalizedSubjects = subjects
+    .map(normalizeSubjectInput)
+    .map((s) => ({ ...s, name: resolveSubjectName(s) }))
+    .filter(
+      (s) => s.name && !nonStudyPattern.test(s.name) && s.name.length > 1,
+    );
+
+  // Also filter sessions so they don't contribute for non-study labels
+  const filteredSessions = (sessions || []).filter((sess) => {
+    const name = resolveSubjectName(sess);
+    return name && !nonStudyPattern.test(name) && name.length > 1;
   });
 
   const scores = normalizedSubjects.map((subject) => {
@@ -203,7 +232,7 @@ export function generateAdaptivePlan({
         Math.max(1, dayjs(examDate).startOf("day").diff(today, "day"))
       : 1;
 
-    const subjectSessions = sessions.filter((session) => {
+    const subjectSessions = filteredSessions.filter((session) => {
       const sessionName = resolveSubjectName(session);
       return sessionName === subjectName;
     });
@@ -317,6 +346,15 @@ export async function getDashboardData(userId) {
     StudyLog.find({ userId }).sort({ date: -1 }).lean(),
   ]);
 
+  const { todayStart, tomorrowStart } = getTodayRange();
+  const todayLogs = logs.filter((log) => {
+    const logDate = dayjs(log.date);
+    return (
+      logDate.isAfter(todayStart.subtract(1, "millisecond")) &&
+      logDate.isBefore(tomorrowStart)
+    );
+  });
+
   const totals = logs.reduce(
     (accumulator, log) => {
       accumulator.totalPlannedHours += Number(log.plannedHours || 0);
@@ -366,6 +404,14 @@ export async function getDashboardData(userId) {
     totalCompletedHours: Number(totals.totalCompletedHours.toFixed(2)),
     progress: Number(progress.toFixed(2)),
     subjectBreakdown,
+    todayLogs: todayLogs.map((log) => ({
+      sessionKey: log.sessionKey || null,
+      subject: log.subject,
+      date: log.date,
+      plannedHours: Number(log.plannedHours || 0),
+      completedHours: Number(log.completedHours || 0),
+      skipped: Boolean(log.skipped),
+    })),
     streak: user.streak || 0,
     lastStudyDate: user.lastStudyDate,
   };

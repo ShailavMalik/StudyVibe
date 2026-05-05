@@ -1,7 +1,24 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import WeeklyScheduleGrid from "./WeeklyScheduleGrid";
 import "./AdvancedSchedulerForm.css";
 import { api } from "../../services/api";
+
+const STORAGE_KEY = "advancedSchedulerState";
+const NON_STUDY_PATTERN =
+  /\b(break|lunch|dinner|meal|coffee|breakfast|snack|self study|self-study|study time|free time|general revision)\b/i;
+const DEFAULT_PREFERENCES = {
+  preferredTimes: [],
+  pomodoro: {
+    focusDuration: 25,
+    breakDuration: 5,
+    longBreakDuration: 15,
+    sessionsBeforeLongBreak: 4,
+  },
+  subjectDifficulty: {},
+  minSessionLength: 30,
+  maxSessionLength: 120,
+  sleepSchedule: { start: 23, end: 7 },
+};
 
 /**
  * AdvancedSchedulerForm - Comprehensive scheduling interface
@@ -13,20 +30,67 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [parsedSchedule, setParsedSchedule] = useState(null);
   const [isParsingFile, setIsParsingFile] = useState(false);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [excludeNonStudyEntries, setExcludeNonStudyEntries] = useState(true);
+  const [replaceManualGrid, setReplaceManualGrid] = useState(false);
+  const [autoApplyParsed, setAutoApplyParsed] = useState(true);
+  const [defaultBlockLabel, setDefaultBlockLabel] = useState("");
   const [commitments, setCommitments] = useState([]);
-  const [preferences, setPreferences] = useState({
-    preferredTimes: [],
-    pomodoro: {
-      focusDuration: 25,
-      breakDuration: 5,
-      longBreakDuration: 15,
-      sessionsBeforeLongBreak: 4,
-    },
-    subjectDifficulty: {},
-    minSessionLength: 30,
-    maxSessionLength: 120,
-    sleepSchedule: { start: 23, end: 7 },
-  });
+  const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES);
+
+  useEffect(() => {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+
+    try {
+      const persisted = JSON.parse(raw);
+      if (persisted?.schedule) setSchedule(persisted.schedule);
+      if (persisted?.commitments) setCommitments(persisted.commitments);
+      if (persisted?.preferences) setPreferences(persisted.preferences);
+      if (persisted?.parsedSchedule)
+        setParsedSchedule(persisted.parsedSchedule);
+      if (typeof persisted?.excludeNonStudyEntries === "boolean") {
+        setExcludeNonStudyEntries(persisted.excludeNonStudyEntries);
+      }
+      if (typeof persisted?.replaceManualGrid === "boolean") {
+        setReplaceManualGrid(persisted.replaceManualGrid);
+      }
+      if (typeof persisted?.autoApplyParsed === "boolean") {
+        setAutoApplyParsed(persisted.autoApplyParsed);
+      }
+      if (typeof persisted?.defaultBlockLabel === "string") {
+        setDefaultBlockLabel(persisted.defaultBlockLabel);
+      }
+      if (persisted?.activeTab) setActiveTab(persisted.activeTab);
+    } catch (error) {
+      console.error("Failed to restore advanced scheduler state", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    const payload = {
+      schedule,
+      commitments,
+      preferences,
+      parsedSchedule,
+      excludeNonStudyEntries,
+      replaceManualGrid,
+      autoApplyParsed,
+      defaultBlockLabel,
+      activeTab,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  }, [
+    schedule,
+    commitments,
+    preferences,
+    parsedSchedule,
+    excludeNonStudyEntries,
+    replaceManualGrid,
+    autoApplyParsed,
+    defaultBlockLabel,
+    activeTab,
+  ]);
 
   const normalizeDayName = (day) => {
     if (!day) return "";
@@ -55,9 +119,12 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
     return dayMap[normalized] || "";
   };
 
-  const parseTimeToHour = (time) => {
-    const [hourStr] = String(time || "00:00").split(":");
-    return Math.max(0, Math.min(23, parseInt(hourStr, 10) || 0));
+  const parseTimeToDecimal = (time) => {
+    const [hourStr, minuteStr = "0"] = String(time || "00:00").split(":");
+    const hour = parseInt(hourStr, 10) || 0;
+    const minutes = parseInt(minuteStr, 10) || 0;
+    const value = hour + minutes / 60;
+    return Math.max(0, Math.min(23.99, value));
   };
 
   const convertParsedScheduleToGrid = (entries, existingSchedule = {}) => {
@@ -67,9 +134,11 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
       const dayName = normalizeDayName(entry.day);
       if (!dayName) return;
 
-      const startHour = parseTimeToHour(entry.startTime);
-      const endHourRaw = parseTimeToHour(entry.endTime);
-      const endHour = endHourRaw <= startHour ? startHour + 1 : endHourRaw;
+      const startHourRaw = parseTimeToDecimal(entry.startTime);
+      const endHourRaw = parseTimeToDecimal(entry.endTime);
+      const startHour = Math.floor(startHourRaw);
+      const endHour =
+        endHourRaw <= startHourRaw ? startHour + 1 : Math.ceil(endHourRaw);
 
       for (let hour = startHour; hour < Math.min(endHour, 24); hour += 1) {
         const key = `${dayName}-${hour}`;
@@ -85,11 +154,17 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
     return next;
   };
 
+  const filterParsedEntries = (entries) => {
+    if (!excludeNonStudyEntries) return entries;
+    return entries.filter(
+      (entry) => entry?.subject && !NON_STUDY_PATTERN.test(entry.subject),
+    );
+  };
+
   /**
    * Handle file upload for schedule
    */
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
+  const processScheduleFile = async (file) => {
     if (!file) return;
 
     setUploadedFile(file);
@@ -106,10 +181,17 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
       const parsedEntries = response?.data?.schedule || [];
       setParsedSchedule(parsedEntries);
 
-      if (parsedEntries.length > 0) {
-        setSchedule((prev) => convertParsedScheduleToGrid(parsedEntries, prev));
+      const filteredEntries = filterParsedEntries(parsedEntries);
+
+      if (filteredEntries.length > 0 && autoApplyParsed) {
+        setSchedule((prev) =>
+          convertParsedScheduleToGrid(
+            filteredEntries,
+            replaceManualGrid ? {} : prev,
+          ),
+        );
         alert("✅ Schedule parsed and added to Manual Input grid.");
-      } else {
+      } else if (parsedEntries.length === 0) {
         alert(
           "⚠️ File uploaded, but no timetable rows were detected. You can still use Manual Input.",
         );
@@ -124,6 +206,27 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
     } finally {
       setIsParsingFile(false);
     }
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    await processScheduleFile(file);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    setIsDragActive(false);
+    const file = e.dataTransfer?.files?.[0];
+    await processScheduleFile(file);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragActive(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragActive(false);
   };
 
   /**
@@ -149,8 +252,45 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
       return;
     }
 
-    setSchedule((prev) => convertParsedScheduleToGrid(parsedSchedule, prev));
+    const filteredEntries = filterParsedEntries(parsedSchedule);
+    if (filteredEntries.length === 0) {
+      alert("⚠️ All parsed rows were filtered out. Check your filters.");
+      return;
+    }
+
+    setSchedule((prev) =>
+      convertParsedScheduleToGrid(
+        filteredEntries,
+        replaceManualGrid ? {} : prev,
+      ),
+    );
     alert("✅ Parsed rows applied to Manual Input grid.");
+  };
+
+  const clearManualGrid = () => {
+    if (confirm("Clear all manual grid blocks?")) {
+      setSchedule({});
+    }
+  };
+
+  const clearParsedSchedule = () => {
+    setParsedSchedule(null);
+    setUploadedFile(null);
+  };
+
+  const resetAdvancedScheduler = () => {
+    if (!confirm("Reset all advanced scheduler inputs?")) return;
+    setSchedule({});
+    setUploadedFile(null);
+    setParsedSchedule(null);
+    setCommitments([]);
+    setPreferences(DEFAULT_PREFERENCES);
+    setExcludeNonStudyEntries(true);
+    setReplaceManualGrid(false);
+    setAutoApplyParsed(true);
+    setDefaultBlockLabel("");
+    setActiveTab("manual");
+    localStorage.removeItem(STORAGE_KEY);
   };
 
   /**
@@ -219,15 +359,43 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
    * Generate advanced study plan (static algorithm)
    */
   const handleGenerateAdvanced = (useAI = false) => {
+    const validSubjects = (subjects || []).filter(
+      (sub) => (sub.subject || sub.name || "").trim().length > 0,
+    );
+
+    if (validSubjects.length === 0) {
+      alert("Please add at least one subject before generating a plan.");
+      return;
+    }
+
+    const missingExamDates = validSubjects.filter(
+      (sub) => !(sub.examDate || sub.date),
+    );
+    if (
+      missingExamDates.length > 0 &&
+      !confirm(
+        "Some subjects are missing exam dates. Continue with default prioritization?",
+      )
+    ) {
+      return;
+    }
+
     const advancedData = {
       schedule,
       commitments,
       preferences,
-      subjects,
+      subjects: validSubjects,
     };
 
     onGenerate(advancedData, useAI);
   };
+
+  const scheduleStats = useMemo(() => {
+    const blocks = Object.keys(schedule || {}).length;
+    const commitmentCount = commitments.length;
+    const parsedCount = parsedSchedule?.length || 0;
+    return { blocks, commitmentCount, parsedCount };
+  }, [schedule, commitments, parsedSchedule]);
 
   return (
     <div className="advanced-scheduler-wrapper w-full max-w-full bg-gradient-to-br from-purple-50 via-white to-blue-50 rounded-2xl shadow-lg p-3 sm:p-4 md:p-6 mb-4 md:mb-8 border border-purple-200">
@@ -281,7 +449,15 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
               Upload Your College/School Timetable
             </h3>
 
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-purple-400 transition-colors">
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                isDragActive ?
+                  "border-purple-500 bg-purple-50"
+                : "border-gray-300 hover:border-purple-400"
+              }`}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}>
               <input
                 type="file"
                 id="scheduleUpload"
@@ -308,8 +484,35 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
               </label>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={excludeNonStudyEntries}
+                  onChange={(e) => setExcludeNonStudyEntries(e.target.checked)}
+                />
+                Exclude breaks/meals
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={replaceManualGrid}
+                  onChange={(e) => setReplaceManualGrid(e.target.checked)}
+                />
+                Replace manual grid on apply
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={autoApplyParsed}
+                  onChange={(e) => setAutoApplyParsed(e.target.checked)}
+                />
+                Auto-apply after upload
+              </label>
+            </div>
+
             <p className="text-sm text-gray-600">
-              Parsed classes are automatically added to the Manual Input grid as
+              Parsed classes can be applied to the Manual Input grid as
               <strong> class </strong> blocks.
             </p>
 
@@ -329,11 +532,18 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
                   <h4 className="font-semibold text-gray-800">
                     📋 Parsed Schedule (Editable)
                   </h4>
-                  <button
-                    onClick={applyParsedToGrid}
-                    className="px-3 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg text-sm font-semibold">
-                    Apply To Manual Grid
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={applyParsedToGrid}
+                      className="px-3 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg text-sm font-semibold">
+                      Apply To Manual Grid
+                    </button>
+                    <button
+                      onClick={clearParsedSchedule}
+                      className="px-3 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm font-semibold hover:bg-gray-50">
+                      Clear Parsed Rows
+                    </button>
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse">
@@ -440,10 +650,32 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
               calendar.
             </p>
 
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700">Default label:</span>
+                <input
+                  type="text"
+                  value={defaultBlockLabel}
+                  onChange={(e) => setDefaultBlockLabel(e.target.value)}
+                  placeholder="e.g., Lecture, Gym"
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+              </div>
+              <button
+                onClick={clearManualGrid}
+                className="px-3 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-50">
+                Clear Manual Grid
+              </button>
+              <span className="text-xs text-gray-500">
+                Blocks: {scheduleStats.blocks}
+              </span>
+            </div>
+
             <div className="calendar-wrapper">
               <WeeklyScheduleGrid
                 schedule={schedule}
                 onScheduleChange={setSchedule}
+                defaultLabel={defaultBlockLabel}
               />
             </div>
           </div>
@@ -471,6 +703,16 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
                 </p>
               </div>
             : <div className="space-y-4">
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>
+                    Total commitments: {scheduleStats.commitmentCount}
+                  </span>
+                  <button
+                    onClick={() => setCommitments([])}
+                    className="text-red-500 hover:text-red-700">
+                    Clear all
+                  </button>
+                </div>
                 {commitments.map((commitment, idx) => (
                   <div
                     key={idx}
@@ -590,6 +832,14 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
             <h3 className="text-lg font-semibold text-gray-800 mb-4">
               Study Preferences & Pomodoro Settings
             </h3>
+
+            <div className="flex justify-end">
+              <button
+                onClick={() => setPreferences(DEFAULT_PREFERENCES)}
+                className="px-3 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm font-semibold hover:bg-gray-50">
+                Reset Preferences
+              </button>
+            </div>
 
             {/* Preferred Study Times */}
             <div className="p-4 border border-gray-300 rounded-lg">
@@ -866,6 +1116,11 @@ function AdvancedSchedulerForm({ onGenerate, subjects }) {
             <span className="badge text-xs px-2 py-0.5 bg-yellow-400 text-purple-900 rounded-full font-bold">
               BETA
             </span>
+          </button>
+          <button
+            onClick={resetAdvancedScheduler}
+            className="w-full sm:w-auto px-4 sm:px-6 md:px-8 py-2.5 sm:py-3 border border-gray-300 text-gray-600 text-sm sm:text-base font-bold rounded-xl hover:bg-gray-50 transition-all duration-300 flex items-center gap-2 justify-center">
+            🔄 Reset Inputs
           </button>
         </div>
       </div>

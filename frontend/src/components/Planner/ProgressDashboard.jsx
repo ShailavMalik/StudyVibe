@@ -46,6 +46,15 @@ function ProgressDashboard({ studyPlan }) {
   const [loading, setLoading] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
 
+  const getSessionKey = useCallback((session, index) => {
+    const subject = session?.subject || "Unknown";
+    const startTime = session?.startTime || session?.time?.startTime || "";
+    const endTime = session?.endTime || session?.time?.endTime || "";
+    const planned =
+      session?.hours ?? session?.time?.hours ?? session?.duration ?? "";
+    return `${subject}|${startTime}|${endTime}|${planned}|${index}`;
+  }, []);
+
   // Get today's date in DD-MMMM-YYYY format (matching AI output)
   const getTodayFormatted = useCallback(() => {
     const today = new Date();
@@ -98,6 +107,15 @@ function ProgressDashboard({ studyPlan }) {
     [studyPlan],
   );
 
+  const subjectCounts = useMemo(() => {
+    const counts = {};
+    todaySessions.forEach((session) => {
+      const key = session?.subject || "Unknown";
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return counts;
+  }, [todaySessions]);
+
   /**
    * Fetch dashboard data including streak and today's completion
    */
@@ -110,6 +128,16 @@ function ProgressDashboard({ studyPlan }) {
         headers: { Authorization: `Bearer ${token}` },
       });
       setDashboardData(response.data);
+      const persistedSessionLogs = (response.data?.todayLogs || []).reduce(
+        (accumulator, log) => {
+          const key = log.sessionKey || log.subject;
+          if (!key) return accumulator;
+          accumulator[key] = Number(log.completedHours || 0);
+          return accumulator;
+        },
+        {},
+      );
+      setSessionLogs(persistedSessionLogs);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     }
@@ -136,13 +164,19 @@ function ProgressDashboard({ studyPlan }) {
     let plannedTotal = 0;
     let completedTotal = 0;
 
-    todaySessions.forEach((session) => {
-      const hours = session.hours || session.time?.hours || 0;
+    todaySessions.forEach((session, idx) => {
+      const durationHours =
+        typeof session.duration === "number" ? session.duration / 60 : 0;
+      const hours = session.hours || session.time?.hours || durationHours || 0;
       plannedTotal += hours;
-      const sessionKey = `${session.subject}`;
-      if (sessionLogs[sessionKey]) {
-        completedTotal += sessionLogs[sessionKey];
-      }
+      const sessionKey = getSessionKey(session, idx);
+      const subjectKey = session?.subject || "Unknown";
+      const fallbackKey = subjectCounts[subjectKey] === 1 ? subjectKey : null;
+      const completed =
+        sessionLogs[sessionKey] ??
+        (fallbackKey ? sessionLogs[fallbackKey] : 0) ??
+        0;
+      completedTotal += completed;
     });
 
     const completionRate =
@@ -159,7 +193,7 @@ function ProgressDashboard({ studyPlan }) {
   /**
    * Log a study session (mark as completed with hours studied)
    */
-  const logStudySession = async (subject, plannedHours) => {
+  const logStudySession = async (session, index) => {
     try {
       setLoading(true);
       const token = localStorage.getItem("studyvibe_token");
@@ -168,13 +202,17 @@ function ProgressDashboard({ studyPlan }) {
         return;
       }
 
-      const currentValue = sessionLogs[subject] || 0;
-      const newValue = currentValue + plannedHours;
+      const subject = session?.subject || "Unknown";
+      const plannedHours = session?.hours || session?.time?.hours || 0;
+      const sessionKey = getSessionKey(session, index);
+      const currentValue = sessionLogs[sessionKey] || 0;
+      const newValue = Math.max(currentValue, plannedHours);
 
       const response = await api.post(
         "/api/dashboard/log-session",
         {
           subject,
+          sessionKey,
           date: new Date(),
           completedHours: newValue,
           plannedHours: plannedHours,
@@ -185,7 +223,7 @@ function ProgressDashboard({ studyPlan }) {
       if (response.data) {
         setSessionLogs((prev) => ({
           ...prev,
-          [subject]: newValue,
+          [sessionKey]: newValue,
         }));
         // Refresh dashboard data
         await fetchDashboardData();
@@ -201,8 +239,8 @@ function ProgressDashboard({ studyPlan }) {
   /**
    * Mark session as fully completed
    */
-  const markSessionComplete = async (subject, plannedHours) => {
-    await logStudySession(subject, plannedHours);
+  const markSessionComplete = async (session, index) => {
+    await logStudySession(session, index);
   };
 
   /**
@@ -316,8 +354,27 @@ function ProgressDashboard({ studyPlan }) {
           </p>
         : <div className="space-y-4">
             {todaySessions.map((session, idx) => {
-              const completed = sessionLogs[session.subject] || 0;
-              const planned = session.hours || 0;
+              const sessionKey = getSessionKey(session, idx);
+              const subjectKey = session?.subject || "Unknown";
+              const fallbackKey =
+                subjectCounts[subjectKey] === 1 ? subjectKey : null;
+              const completed =
+                sessionLogs[sessionKey] ??
+                (fallbackKey ? sessionLogs[fallbackKey] : 0) ??
+                0;
+              const plannedDurationHours =
+                typeof session.duration === "number" ?
+                  session.duration / 60
+                : 0;
+              const planned =
+                session.hours ||
+                session.time?.hours ||
+                plannedDurationHours ||
+                0;
+              const timeRange =
+                session.startTime && session.endTime ?
+                  `${session.startTime} - ${session.endTime}`
+                : session.timeFormatted;
               const isComplete = completed >= planned;
               const completionPercent =
                 planned > 0 ? (completed / planned) * 100 : 0;
@@ -347,12 +404,15 @@ function ProgressDashboard({ studyPlan }) {
                           {planned.toFixed(1)}
                         </span>{" "}
                         hours completed
+                        {timeRange && (
+                          <span className="ml-2 text-xs text-gray-500">
+                            • {timeRange}
+                          </span>
+                        )}
                       </p>
                     </div>
                     <button
-                      onClick={() =>
-                        markSessionComplete(session.subject, planned)
-                      }
+                      onClick={() => markSessionComplete(session, idx)}
                       disabled={loading || isComplete}
                       className={`px-6 py-3 rounded-lg font-semibold whitespace-nowrap transition-all transform ${
                         isComplete ?

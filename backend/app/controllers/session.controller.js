@@ -17,7 +17,13 @@ export const completeSession = async (req, res) => {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    const { subject, date, plannedHours = 0, completedHours } = req.body;
+    const {
+      subject,
+      date,
+      plannedHours = 0,
+      completedHours,
+      sessionKey,
+    } = req.body;
 
     if (!subject || !date) {
       return res.status(400).json({ error: "subject and date are required" });
@@ -34,6 +40,7 @@ export const completeSession = async (req, res) => {
 
     const studyLog = await logStudySession({
       userId,
+      sessionKey,
       subject,
       date: sessionDate.toDate(),
       plannedHours,

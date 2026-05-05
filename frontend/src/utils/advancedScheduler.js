@@ -18,16 +18,92 @@ const PREFERRED_TIME_SLOTS = {
   "Night (9 PM+)": [21, 22, 23],
 };
 
+const MINUTES_IN_DAY = 24 * 60;
+
+const toMinutes = (hourValue) => Math.round(Number(hourValue || 0) * 60);
+
+const minutesToTime = (minutes) => {
+  const safeMinutes = Math.max(0, Math.min(MINUTES_IN_DAY - 1, minutes));
+  const hours = Math.floor(safeMinutes / 60);
+  const mins = safeMinutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+};
+
+const groupFreeBlocksByDay = (freeBlocks) => {
+  return (freeBlocks || []).reduce((accumulator, block) => {
+    if (!block?.day) return accumulator;
+    if (!accumulator[block.day]) accumulator[block.day] = [];
+    accumulator[block.day].push(block);
+    return accumulator;
+  }, {});
+};
+
+const reserveSlot = (blocks, durationMin, preferredStartMin) => {
+  if (!Array.isArray(blocks) || blocks.length === 0) return null;
+
+  const preferred =
+    typeof preferredStartMin === "number" ? preferredStartMin : (
+      blocks[0].startMin
+    );
+
+  let bestIndex = -1;
+  let bestStart = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  blocks.forEach((block, idx) => {
+    const latestStart = block.endMin - durationMin;
+    if (latestStart < block.startMin) return;
+
+    const candidateStart = Math.min(
+      Math.max(preferred, block.startMin),
+      latestStart,
+    );
+    const score = Math.abs(candidateStart - preferred);
+
+    if (score < bestScore) {
+      bestScore = score;
+      bestIndex = idx;
+      bestStart = candidateStart;
+    }
+  });
+
+  if (bestIndex < 0 || bestStart === null) return null;
+
+  const block = blocks[bestIndex];
+  const endMin = bestStart + durationMin;
+  const updated = [];
+
+  if (block.startMin < bestStart) {
+    updated.push({ startMin: block.startMin, endMin: bestStart });
+  }
+  if (endMin < block.endMin) {
+    updated.push({ startMin: endMin, endMin: block.endMin });
+  }
+
+  blocks.splice(bestIndex, 1, ...updated);
+  blocks.sort((a, b) => a.startMin - b.startMin);
+
+  return { startMin: bestStart, endMin };
+};
+
 function normalizeSubjects(subjects, preferences) {
+  const fallbackExamDate = dayjs().add(30, "day").startOf("day");
+
   return (subjects || []).map((sub) => {
-    const name = sub.subject || sub.name;
+    const name = sub.subject || sub.name || "";
     const difficulty = preferences?.subjectDifficulty?.[name] || 3;
+    const rawExamDate = sub.examDate || sub.date;
+    const parsedExamDate = dayjs(rawExamDate);
+    const examDate =
+      parsedExamDate.isValid() ?
+        parsedExamDate.startOf("day")
+      : fallbackExamDate;
 
     return {
       ...sub,
       name,
       difficulty,
-      examDate: dayjs(sub.examDate || sub.date).startOf("day"),
+      examDate,
     };
   });
 }
@@ -144,10 +220,17 @@ export function generateAdvancedStaticPlan(
   );
 
   const pomodoro = preferences?.pomodoro || { focusDuration: 25 };
-  const minSessionLength = Math.max(15, preferences?.minSessionLength || 30);
+  const minSessionLength = Math.max(
+    15,
+    Number(preferences?.minSessionLength || 30),
+  );
   const maxSessionLength = Math.max(
     minSessionLength,
-    preferences?.maxSessionLength || 120,
+    Number(preferences?.maxSessionLength || 120),
+  );
+
+  const freeBlocksByDay = groupFreeBlocksByDay(
+    calculateFreeTimeBlocks(schedule, commitments, preferences),
   );
 
   for (let dayOffset = 0; dayOffset < planningDays; dayOffset += 1) {
@@ -155,14 +238,38 @@ export function generateAdvancedStaticPlan(
     const dateStr = currentDate.format("DD-MMMM-YYYY");
     const dayOfWeek = DAY_NAMES[currentDate.day()];
 
-    const dailyFreeHours = calculateDailyAvailableHours(
-      schedule,
-      commitments,
-      preferences,
-      dayOfWeek,
+    const dayBlocks = (freeBlocksByDay[dayOfWeek] || [])
+      .map((block) => ({
+        startMin: Math.max(0, Math.round(block.startHour * 60)),
+        endMin: Math.min(MINUTES_IN_DAY, Math.round(block.endHour * 60)),
+      }))
+      .filter((block) => block.endMin > block.startMin)
+      .sort((a, b) => a.startMin - b.startMin);
+
+    if (dayBlocks.length === 0) continue;
+
+    const dailyFreeMinutes = dayBlocks.reduce(
+      (sum, block) => sum + (block.endMin - block.startMin),
+      0,
     );
 
-    if (dailyFreeHours <= 0.5) continue;
+    const dailyCapacityMinutes = Math.min(
+      dailyFreeMinutes,
+      Math.max(0, Math.round(Number(studyHoursAvailable || 0) * 60)),
+    );
+
+    if (dailyCapacityMinutes < minSessionLength) continue;
+
+    let effectiveMinutes = dailyCapacityMinutes;
+    if (preferences?.pomodoro && effectiveMinutes > 0) {
+      const focusMin = preferences.pomodoro.focusDuration || 25;
+      const breakMin = preferences.pomodoro.breakDuration || 5;
+      const overhead = breakMin / Math.max(1, focusMin);
+      effectiveMinutes = Math.max(
+        minSessionLength,
+        Math.floor(effectiveMinutes * (1 - overhead)),
+      );
+    }
 
     const activeSubjects = subjectList.filter(
       (sub) => sub.examDate.diff(currentDate, "day") > 0,
@@ -201,32 +308,64 @@ export function generateAdvancedStaticPlan(
     const sessions = [];
     let sessionIndex = 0;
 
-    Object.entries(weights).forEach(([subName, normalizedWeight]) => {
-      const targetHours = dailyFreeHours * normalizedWeight;
-      const subject = subjectList.find((s) => s.name === subName);
-      if (!subject || targetHours < 0.4) return;
+    const orderedWeights = Object.entries(weights).sort((a, b) => b[1] - a[1]);
 
-      let minutesRemaining = Math.round(targetHours * 60);
+    orderedWeights.forEach(([subName, normalizedWeight]) => {
+      const subject = subjectList.find((s) => s.name === subName);
+      if (!subject) return;
+
+      const hoursRemaining = Math.max(
+        0,
+        subject.totalHoursNeeded - allocatedHours[subName],
+      );
+      if (hoursRemaining < minSessionLength / 60) return;
+
+      const targetMinutes = Math.floor(effectiveMinutes * normalizedWeight);
+      let minutesRemaining = Math.min(
+        targetMinutes,
+        Math.floor(hoursRemaining * 60),
+      );
 
       while (minutesRemaining >= minSessionLength) {
-        const sessionDuration = Math.min(maxSessionLength, minutesRemaining);
-        const startHour = getPreferredStartHour(preferences, sessionIndex);
-        const startMin = (sessionIndex * 15) % 60;
-        const endTotal = startHour * 60 + startMin + sessionDuration;
+        const maxBlockMinutes = dayBlocks.reduce(
+          (max, block) => Math.max(max, block.endMin - block.startMin),
+          0,
+        );
 
-        const endHour = Math.floor(endTotal / 60) % 24;
-        const endMin = endTotal % 60;
+        if (maxBlockMinutes < minSessionLength) return;
+
+        const sessionDuration = Math.min(
+          maxSessionLength,
+          minutesRemaining,
+          maxBlockMinutes,
+        );
+
+        const preferredStartMin =
+          getPreferredStartHour(preferences, sessionIndex) * 60;
+        const slot = reserveSlot(dayBlocks, sessionDuration, preferredStartMin);
+
+        if (!slot) break;
+
+        const durationHours = Math.floor(sessionDuration / 60);
+        const durationMinutes = sessionDuration % 60;
+        const timeFormatted =
+          durationHours > 0 ?
+            `${durationHours} hr ${durationMinutes} min`
+          : `${durationMinutes} min`;
 
         sessions.push({
           subject: subName,
-          startTime: `${String(startHour).padStart(2, "0")}:${String(startMin).padStart(2, "0")}`,
-          endTime: `${String(endHour).padStart(2, "0")}:${String(endMin).padStart(2, "0")}`,
+          startTime: minutesToTime(slot.startMin),
+          endTime: minutesToTime(slot.endMin),
           duration: sessionDuration,
+          hours: Number((sessionDuration / 60).toFixed(2)),
+          timeFormatted,
           pomodoroSessions: Math.ceil(
             sessionDuration / (pomodoro.focusDuration || 25),
           ),
           sessionType: sessionIndex % 3 === 0 ? "review" : "learning",
           difficulty: subject.difficulty,
+          examDate: subject.examDate.format("YYYY-MM-DD"),
         });
 
         allocatedHours[subName] += sessionDuration / 60;
@@ -272,9 +411,15 @@ export function calculateFreeTimeBlocks(schedule, commitments, preferences) {
       if (Array.isArray(commitments)) {
         commitments.forEach((commitment) => {
           if (!commitment?.days?.includes(day.slice(0, 3))) return;
-          const [sh] = String(commitment.startTime || "00:00").split(":");
-          const [eh] = String(commitment.endTime || "00:00").split(":");
-          busy.push({ start: Number(sh), end: Number(eh) });
+          const [sh, sm = "0"] = String(commitment.startTime || "00:00").split(
+            ":",
+          );
+          const [eh, em = "0"] = String(commitment.endTime || "00:00").split(
+            ":",
+          );
+          const start = Number(sh) + Number(sm) / 60;
+          const end = Number(eh) + Number(em) / 60;
+          busy.push({ start, end });
         });
       }
 

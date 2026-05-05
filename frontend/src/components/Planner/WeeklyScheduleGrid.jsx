@@ -39,7 +39,7 @@ const BLOCK_TYPES = {
  * WeeklyScheduleGrid - Visual time picker for marking busy/free time blocks
  * Allows drag-to-select across the week's schedule
  */
-function WeeklyScheduleGrid({ schedule, onScheduleChange }) {
+function WeeklyScheduleGrid({ schedule, onScheduleChange, defaultLabel = "" }) {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartCell, setDragStartCell] = useState(null);
   const [activeBlockType, setActiveBlockType] = useState("class");
@@ -61,7 +61,7 @@ function WeeklyScheduleGrid({ schedule, onScheduleChange }) {
         day,
         hour,
         type: activeBlockType,
-        label: "",
+        label: defaultLabel || "",
       };
     }
 
@@ -134,9 +134,9 @@ function WeeklyScheduleGrid({ schedule, onScheduleChange }) {
               key={type}
               onClick={() => setActiveBlockType(type)}
               className={`px-4 py-2 rounded-lg font-medium text-sm transition-all shadow-md ${
-                activeBlockType === type
-                  ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white ring-2 ring-purple-300"
-                  : "bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-300"
+                activeBlockType === type ?
+                  "bg-gradient-to-r from-purple-600 to-blue-600 text-white ring-2 ring-purple-300"
+                : "bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-300"
               }`}>
               {style.label}
             </button>
@@ -190,7 +190,7 @@ function WeeklyScheduleGrid({ schedule, onScheduleChange }) {
                         key={key}
                         className={`border border-gray-300 p-0 cursor-pointer select-none transition-colors duration-150 ${getBlockStyle(
                           day,
-                          hour
+                          hour,
                         )}`}
                         onMouseDown={() => handleMouseDown(day, hour)}
                         onMouseEnter={() => handleMouseEnter(day, hour)}

@@ -24,9 +24,26 @@ const BlogPost = () => {
     const fetchBlogPost = async () => {
       try {
         setLoading(true);
-        // Try to fetch from API first, fallback to static data
-        const response = await api.get(`/api/blogs/${id}`);
-        const blogData = response.data;
+        let blogData;
+
+        try {
+          const response = await api.get(`/api/blogs/${id}`);
+          blogData = response.data;
+        } catch (apiError) {
+          if (import.meta.env.DEV && apiError?.response?.status === 404) {
+            try {
+              await api.post("/api/blogs/init/seed", { blogs: blogPosts });
+              const seededResponse = await api.get(`/api/blogs/${id}`);
+              blogData = seededResponse.data;
+            } catch (seedError) {
+              console.warn("Failed to seed blogs in dev:", seedError);
+              throw apiError;
+            }
+          } else {
+            throw apiError;
+          }
+        }
+
         setPost(blogData);
         setLikesCount(blogData.likes || 0);
 

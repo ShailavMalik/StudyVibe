@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 /**
  * Simple subject input for Advanced Scheduler
@@ -11,12 +11,18 @@ function AdvancedSubjectInput({
   onStudyHoursChange,
 }) {
   const [localSubjects, setLocalSubjects] = useState(
-    subjects.length > 0 ? subjects : [{ subject: "", examDate: "" }]
+    subjects.length > 0 ? subjects : [{ subject: "", examDate: "" }],
   );
+
+  useEffect(() => {
+    if (subjects && subjects.length > 0) {
+      setLocalSubjects(subjects);
+    }
+  }, [subjects]);
 
   function handleSubjectChange(idx, field, value) {
     const updated = localSubjects.map((row, i) =>
-      i === idx ? { ...row, [field]: value } : row
+      i === idx ? { ...row, [field]: value } : row,
     );
     setLocalSubjects(updated);
     onSubjectsChange(updated);

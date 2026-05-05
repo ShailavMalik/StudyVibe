@@ -12,6 +12,7 @@ const StudyLogSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    sessionKey: { type: String },
     subject: { type: String, required: true },
     date: { type: Date, required: true },
     plannedHours: { type: Number, default: 0 },
