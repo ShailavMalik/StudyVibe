@@ -6,6 +6,7 @@ import { api } from "../services/api";
 import Footer from "../components/Reusable/Footer";
 import { FaHeart } from "react-icons/fa";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 // Individual blog post detail page
 // Shows full blog post content with navigation
@@ -316,10 +317,19 @@ const BlogPost = () => {
               overflow-x: auto;
               margin: 1rem 0;
             }
+            .markdown-content img {
+              max-width: 100%;
+              height: auto;
+              border-radius: 0.75rem;
+              margin: 1.5rem 0;
+              box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+            }
             .markdown-content table {
               width: 100%;
               border-collapse: collapse;
               margin: 1rem 0;
+              display: block;
+              overflow-x: auto;
             }
             .markdown-content th, .markdown-content td {
               border: 1px solid #d1d5db;
@@ -331,7 +341,9 @@ const BlogPost = () => {
               font-weight: 600;
             }
           `}</style>
-          <ReactMarkdown>{post.content}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {post.content}
+          </ReactMarkdown>
         </div>
 
         {/* Tags */}
