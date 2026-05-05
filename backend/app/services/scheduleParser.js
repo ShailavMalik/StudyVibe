@@ -10,7 +10,14 @@ import { createWorker } from "tesseract.js";
  */
 export const parseScheduleFile = async (filePath, fileType) => {
   try {
-    if (fileType === "text/csv") {
+    // Handle CSV files - accept multiple MIME types
+    if (
+      fileType === "text/csv" ||
+      fileType === "text/plain" ||
+      fileType === "application/octet-stream" ||
+      fileType === "application/vnd.ms-excel" ||
+      filePath.endsWith(".csv")
+    ) {
       return await parseCSVSchedule(filePath);
     }
 

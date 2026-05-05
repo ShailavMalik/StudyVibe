@@ -25,17 +25,28 @@ const upload = multer({
   },
   fileFilter: function (req, file, cb) {
     // Accept images, PDFs, and CSV files
-    if (
-      file.mimetype === "image/png" ||
-      file.mimetype === "image/jpg" ||
-      file.mimetype === "image/jpeg" ||
-      file.mimetype === "application/pdf" ||
-      file.mimetype === "text/csv"
-    ) {
+    // Support multiple MIME types for CSV
+    const allowedMimes = [
+      "image/png",
+      "image/jpg",
+      "image/jpeg",
+      "application/pdf",
+      "text/csv",
+      "text/plain", // Some systems send CSV as text/plain
+      "application/vnd.ms-excel", // Old Excel format
+    ];
+
+    // Also check file extension as fallback
+    const ext = file.originalname.split(".").pop()?.toLowerCase();
+    const allowedExts = ["csv", "png", "jpg", "jpeg", "pdf"];
+
+    if (allowedMimes.includes(file.mimetype) || allowedExts.includes(ext)) {
       cb(null, true);
     } else {
       cb(
-        new Error("Invalid file type. Only PDF, PNG, JPG, and CSV are allowed.")
+        new Error(
+          `Invalid file type. File: ${file.originalname}, MIME: ${file.mimetype}. Only PDF, PNG, JPG, and CSV are allowed.`,
+        ),
       );
     }
   },

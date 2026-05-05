@@ -220,13 +220,16 @@ function Dashboard() {
     // Use static algorithm for manual scheduling
     const { generateAdvancedStaticPlan } =
       await import("../utils/advancedScheduler");
-    const plan = generateAdvancedStaticPlan(
+    const result = generateAdvancedStaticPlan(
       advancedData.subjects,
       advancedData.schedule,
       advancedData.commitments,
       advancedData.preferences,
       studyHoursAvailable,
     );
+
+    // Extract just the schedule part from the result
+    const plan = result.schedule || result;
 
     setAdvancedPlan(plan);
 

@@ -13,9 +13,9 @@
  */
 
 import React, { useState } from "react";
-import axios from "axios";
 import Footer from "../components/Reusable/Footer";
 import Sidebar from "../components/Reusable/Sidebar";
+import { api } from "../services/api";
 
 /**
  * Contact Component
@@ -86,7 +86,7 @@ const Contact = () => {
       setError(null);
 
       // Send to backend
-      const response = await axios.post("http://localhost:3001/api/contact", {
+      const response = await api.post("/api/contact", {
         name: form.name.trim(),
         email: form.email.trim(),
         message: form.message.trim(),

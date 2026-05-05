@@ -1,7 +1,22 @@
 import React from "react";
 
 function StudyPlanTable({ plan }) {
-  if (!plan || Object.keys(plan).length === 0) {
+  // Normalize plan structure
+  const normalizePlan = (rawPlan) => {
+    if (!rawPlan || typeof rawPlan !== "object") return {};
+
+    // If plan has a 'schedule' property, extract it
+    if (rawPlan.schedule && typeof rawPlan.schedule === "object") {
+      return rawPlan.schedule;
+    }
+
+    // Otherwise, assume it's already in the correct format
+    return rawPlan;
+  };
+
+  const normalizedPlan = normalizePlan(plan);
+
+  if (!normalizedPlan || Object.keys(normalizedPlan).length === 0) {
     return (
       <div className="text-center text-gray-400 mt-8">
         No study plan available.
@@ -30,40 +45,45 @@ function StudyPlanTable({ plan }) {
             </tr>
           </thead>
           <tbody>
-            {Object.entries(plan).map(([date, subjects], dateIdx) => (
-              <React.Fragment key={date}>
-                {/* Only add a line before every date except the first */}
-                {dateIdx != 0 && (
-                  <tr>
-                    <td colSpan={3}>
-                      <div className="border-t border-blue-300 my-2"></div>
-                    </td>
-                  </tr>
-                )}
-                {subjects.map((entry, idx) => (
-                  <tr
-                    key={date + idx}
-                    className={`${
-                      idx % 2 === 0 ? "bg-[#f3f6fa]" : "bg-white"
-                    } border-b border-gray-200 hover:bg-blue-50 transition-colors duration-200`}>
-                    <td
-                      className={`py-0 px-0 ${
-                        idx === 0
-                          ? "font-medium text-slate-800 rounded-tl-lg"
+            {Object.entries(normalizedPlan).map(([date, sessions], dateIdx) => {
+              // Ensure sessions is an array
+              const sessionArray = Array.isArray(sessions) ? sessions : [];
+
+              return (
+                <React.Fragment key={date}>
+                  {/* Only add a line before every date except the first */}
+                  {dateIdx != 0 && (
+                    <tr>
+                      <td colSpan={3}>
+                        <div className="border-t border-blue-300 my-2"></div>
+                      </td>
+                    </tr>
+                  )}
+                  {sessionArray.map((entry, idx) => (
+                    <tr
+                      key={date + idx}
+                      className={`${
+                        idx % 2 === 0 ? "bg-[#f3f6fa]" : "bg-white"
+                      } border-b border-gray-200 hover:bg-blue-50 transition-colors duration-200`}>
+                      <td
+                        className={`py-0 px-0 ${
+                          idx === 0 ?
+                            "font-medium text-slate-800 rounded-tl-lg"
                           : "font-normal"
-                      } w-1/4 sm:py-1 sm:px-1 md:py-3 md:px-2`}>
-                      {idx === 0 ? date : ""}
-                    </td>
-                    <td className="py-1 w-fit px-2 text-slate-700 sm:w-1/2 sm:py-3">
-                      {entry.subject}
-                    </td>
-                    <td className="py-1 px-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 font-medium w-1/4">
-                      {entry.timeFormatted || entry.hours}
-                    </td>
-                  </tr>
-                ))}
-              </React.Fragment>
-            ))}
+                        } w-1/4 sm:py-1 sm:px-1 md:py-3 md:px-2`}>
+                        {idx === 0 ? date : ""}
+                      </td>
+                      <td className="py-1 w-fit px-2 text-slate-700 sm:w-1/2 sm:py-3">
+                        {entry.subject}
+                      </td>
+                      <td className="py-1 px-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 font-medium w-1/4">
+                        {entry.timeFormatted || entry.duration || entry.hours}
+                      </td>
+                    </tr>
+                  ))}
+                </React.Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>

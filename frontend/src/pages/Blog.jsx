@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import { Link } from "react-router-dom";
 import { blogPosts, getAllCategories } from "../data/blogData";
+import { AuthContext } from "../contexts/authContext";
+import { api } from "../services/api";
 import Footer from "../components/Reusable/Footer";
 import Sidebar from "../components/Reusable/Sidebar";
 import { FaHeart } from "react-icons/fa";
-import axios from "axios";
 
 /**
  * Blog Page Component
@@ -18,40 +19,63 @@ import axios from "axios";
  * - Responsive grid layout
  */
 const Blog = () => {
+  const { user } = useContext(AuthContext);
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [posts, setPosts] = useState(blogPosts);
   const [likedPosts, setLikedPosts] = useState({});
   const [loading, setLoading] = useState({});
   const categories = ["All", ...getAllCategories()];
-  const userId = localStorage.getItem("userId"); // Get user ID from localStorage
 
-  // Fetch blog likes on mount
+  // Fetch blog posts from API on mount
   useEffect(() => {
-    fetchBlogLikes();
+    fetchBlogsFromAPI();
   }, []);
 
   /**
-   * Fetch all blogs to get current like status
+   * Fetch all blogs from API to get current like status
    */
-  const fetchBlogLikes = async () => {
+  const fetchBlogsFromAPI = async () => {
     try {
-      const response = await axios.get("http://localhost:3001/api/blogs");
+      const response = await api.get("/api/blogs");
+      const blogList = response.data;
+
+      // Create a likes map from API response
       const likesMap = {};
-      response.data.forEach((blog) => {
+      blogList.forEach((blog) => {
         likesMap[blog.id] = {
-          liked: userId ? blog.likedBy.includes(userId) : false,
+          liked:
+            user && blog.likedBy ?
+              blog.likedBy.some((likeUserId) => {
+                return likeUserId === user.id || likeUserId?._id === user.id;
+              })
+            : false,
           count: blog.likes || 0,
         };
       });
       setLikedPosts(likesMap);
+
+      // Use API blogs if available, fallback to static data
+      if (blogList && blogList.length > 0) {
+        setPosts(blogList);
+      }
     } catch (error) {
-      console.error("Error fetching blog likes:", error);
+      console.warn("Error fetching blogs from API, using static data:", error);
+      // Fallback to static data - initialize likes map from static data
+      const likesMap = {};
+      blogPosts.forEach((post) => {
+        likesMap[post.id] = {
+          liked: false,
+          count: post.likes || 0,
+        };
+      });
+      setLikedPosts(likesMap);
     }
   };
 
   // Filter posts based on selected category
   const filteredPosts =
-    selectedCategory === "All" ? blogPosts : (
-      blogPosts.filter((post) => post.category === selectedCategory)
+    selectedCategory === "All" ? posts : (
+      posts.filter((post) => post.category === selectedCategory)
     );
 
   /**
@@ -59,26 +83,31 @@ const Blog = () => {
    * Makes API call to persist like in database
    */
   const handleLike = async (postId) => {
+    if (!user) {
+      // Show login prompt or redirect
+      window.location.href = "/login";
+      return;
+    }
+
     try {
       setLoading((prev) => ({ ...prev, [postId]: true }));
-      const token = localStorage.getItem("token");
 
-      const response = await axios.post(
-        `http://localhost:3001/api/blogs/${postId}/like`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
+      // Use MongoDB _id if available, otherwise use the numeric id
+      const blogId = posts.find((p) => p.id === postId)?._id || postId;
+
+      const response = await api.post(`/api/blogs/${blogId}/like`);
 
       // Update local state with new like data
       setLikedPosts((prev) => ({
         ...prev,
         [postId]: {
-          liked: !prev[postId]?.liked,
+          liked: response.data.liked,
           count: response.data.likes,
         },
       }));
     } catch (error) {
       console.error("Error toggling like:", error);
+      alert("Failed to update like. Please try again.");
     } finally {
       setLoading((prev) => ({ ...prev, [postId]: false }));
     }

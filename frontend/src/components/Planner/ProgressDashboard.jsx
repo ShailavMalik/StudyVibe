@@ -28,7 +28,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import axios from "axios";
+import { api } from "../../services/api";
 
 /**
  * ProgressDashboard - Track today's study sessions and log completions
@@ -106,7 +106,7 @@ function ProgressDashboard({ studyPlan }) {
       const token = localStorage.getItem("studyvibe_token");
       if (!token) return;
 
-      const response = await axios.get("http://localhost:3001/api/dashboard", {
+      const response = await api.get("/api/dashboard", {
         headers: { Authorization: `Bearer ${token}` },
       });
       setDashboardData(response.data);
@@ -171,8 +171,8 @@ function ProgressDashboard({ studyPlan }) {
       const currentValue = sessionLogs[subject] || 0;
       const newValue = currentValue + plannedHours;
 
-      const response = await axios.post(
-        "http://localhost:3001/api/dashboard/log-session",
+      const response = await api.post(
+        "/api/dashboard/log-session",
         {
           subject,
           date: new Date(),

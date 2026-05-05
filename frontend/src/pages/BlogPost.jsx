@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect, useContext } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { getBlogPost, blogPosts } from "../data/blogData";
+import { AuthContext } from "../contexts/authContext";
+import { api } from "../services/api";
 import Footer from "../components/Reusable/Footer";
 import { FaHeart } from "react-icons/fa";
 
@@ -9,10 +11,103 @@ import { FaHeart } from "react-icons/fa";
 const BlogPost = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const post = getBlogPost(id);
-  const [liked, setLiked] = useState(false);
+  const { user } = useContext(AuthContext);
+  const [post, setPost] = useState(null);
+  const [isLiked, setIsLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [liking, setLiking] = useState(false);
+
+  // Fetch blog post from API
+  useEffect(() => {
+    const fetchBlogPost = async () => {
+      try {
+        setLoading(true);
+        // Try to fetch from API first, fallback to static data
+        const response = await api.get(`/api/blogs/${id}`);
+        const blogData = response.data;
+        setPost(blogData);
+        setLikesCount(blogData.likes || 0);
+
+        // Check if current user has liked this post
+        if (user && blogData.likedBy && blogData.likedBy.length > 0) {
+          setIsLiked(
+            blogData.likedBy.some((likeUserId) => {
+              // Handle both ObjectId and demo user comparison
+              return likeUserId === user.id || likeUserId?._id === user.id;
+            }),
+          );
+        }
+      } catch (err) {
+        console.warn("Failed to fetch blog from API, using static data:", err);
+        // Fallback to static data
+        const staticPost = getBlogPost(id);
+        setPost(staticPost);
+        if (staticPost) {
+          setLikesCount(staticPost.likes || 0);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBlogPost();
+  }, [id, user]);
+
+  // Handle like toggle
+  const handleLikeToggle = async () => {
+    if (!user) {
+      navigate("/login", { state: { from: `/blog/${id}` } });
+      return;
+    }
+
+    try {
+      setLiking(true);
+      const response = await api.post(`/api/blogs/${post._id || id}/like`);
+      setIsLiked(response.data.liked);
+      setLikesCount(response.data.likes);
+    } catch (err) {
+      console.error("Failed to toggle like:", err);
+      // Fallback: just toggle locally if API fails
+      setIsLiked(!isLiked);
+      setLikesCount(isLiked ? likesCount - 1 : likesCount + 1);
+    } finally {
+      setLiking(false);
+    }
+  };
 
   // If post not found, show error
+  if (!loading && !post) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-gray-800 mb-4">
+            Post Not Found
+          </h1>
+          <p className="text-gray-600 mb-6">
+            Sorry, we couldn't find that blog post.
+          </p>
+          <Link to="/blog" className="btn btn-primary">
+            Back to Blog
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading blog post...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!post) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
@@ -31,10 +126,13 @@ const BlogPost = () => {
     );
   }
 
-  // Get related posts (same category, different post)
-  const relatedPosts = blogPosts
-    .filter((p) => p.category === post.category && p.id !== post.id)
-    .slice(0, 3);
+  // Get related posts (same category, different post) from static data as fallback
+  const relatedPosts =
+    post ?
+      blogPosts
+        .filter((p) => p.category === post.category && p.id !== post.id)
+        .slice(0, 3)
+    : [];
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
@@ -107,14 +205,15 @@ const BlogPost = () => {
           </div>
           <button
             type="button"
-            onClick={() => setLiked((value) => !value)}
+            onClick={handleLikeToggle}
+            disabled={liking}
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition-colors ${
-              liked ?
+              isLiked ?
                 "bg-red-100 text-red-600"
               : "bg-white text-gray-700 border border-gray-200 hover:bg-red-50 hover:text-red-600"
-            }`}>
-            <FaHeart className={liked ? "text-red-500" : ""} />
-            {liked ? post.likes + 1 : post.likes} Likes
+            } ${liking ? "opacity-50 cursor-not-allowed" : ""}`}>
+            <FaHeart className={isLiked ? "text-red-500" : ""} />
+            {likesCount} {likesCount === 1 ? "Like" : "Likes"}
           </button>
         </div>
 
