@@ -5,6 +5,7 @@ import { AuthContext } from "../contexts/authContext";
 import { api } from "../services/api";
 import Footer from "../components/Reusable/Footer";
 import { FaHeart } from "react-icons/fa";
+import ReactMarkdown from "react-markdown";
 
 // Individual blog post detail page
 // Shows full blog post content with navigation
@@ -247,81 +248,90 @@ const BlogPost = () => {
         </div>
 
         {/* Article Content */}
-        <div className="prose prose-lg max-w-none mb-12">
-          {/* Format the content - split by paragraphs and render */}
-          {post.content.split("\n").map((paragraph, index) => {
-            // Handle headers
-            if (paragraph.startsWith("# ")) {
-              return (
-                <h1
-                  key={index}
-                  className="text-3xl font-bold text-gray-900 mt-8 mb-4">
-                  {paragraph.substring(2)}
-                </h1>
-              );
+        <div className="mb-12 markdown-content">
+          <style>{`
+            .markdown-content h1 {
+              font-size: 2rem;
+              font-weight: bold;
+              color: #111827;
+              margin-top: 2rem;
+              margin-bottom: 1rem;
+              line-height: 1.2;
             }
-            if (paragraph.startsWith("## ")) {
-              return (
-                <h2
-                  key={index}
-                  className="text-2xl font-bold text-gray-800 mt-6 mb-3">
-                  {paragraph.substring(3)}
-                </h2>
-              );
+            .markdown-content h2 {
+              font-size: 1.5rem;
+              font-weight: bold;
+              color: #1f2937;
+              margin-top: 1.5rem;
+              margin-bottom: 0.75rem;
             }
-            if (paragraph.startsWith("### ")) {
-              return (
-                <h3
-                  key={index}
-                  className="text-xl font-bold text-gray-800 mt-4 mb-2">
-                  {paragraph.substring(4)}
-                </h3>
-              );
+            .markdown-content h3 {
+              font-size: 1.25rem;
+              font-weight: bold;
+              color: #1f2937;
+              margin-top: 1rem;
+              margin-bottom: 0.5rem;
             }
-
-            // Handle bold text
-            if (paragraph.startsWith("**") && paragraph.endsWith("**")) {
-              return (
-                <p
-                  key={index}
-                  className="text-gray-700 leading-relaxed my-4 font-bold">
-                  {paragraph.replace(/\*\*/g, "")}
-                </p>
-              );
+            .markdown-content p {
+              color: #374151;
+              line-height: 1.75;
+              margin: 1rem 0;
             }
-
-            // Handle lists
-            if (
-              paragraph.trim().startsWith("-") ||
-              paragraph.trim().startsWith("•")
-            ) {
-              return (
-                <li key={index} className="text-gray-700 leading-relaxed ml-6">
-                  {paragraph.substring(paragraph.indexOf(" ") + 1)}
-                </li>
-              );
+            .markdown-content ul, .markdown-content ol {
+              margin: 1rem 0;
+              padding-left: 2rem;
             }
-
-            // Handle numbered lists
-            if (/^\d+\./.test(paragraph.trim())) {
-              return (
-                <li key={index} className="text-gray-700 leading-relaxed ml-6">
-                  {paragraph.substring(paragraph.indexOf(".") + 1).trim()}
-                </li>
-              );
+            .markdown-content li {
+              color: #374151;
+              line-height: 1.75;
+              margin: 0.5rem 0;
             }
-
-            // Regular paragraphs
-            if (paragraph.trim()) {
-              return (
-                <p key={index} className="text-gray-700 leading-relaxed my-4">
-                  {paragraph}
-                </p>
-              );
+            .markdown-content strong {
+              font-weight: 600;
+              color: #111827;
             }
-
-            return null;
-          })}
+            .markdown-content em {
+              font-style: italic;
+            }
+            .markdown-content blockquote {
+              border-left: 4px solid #3b82f6;
+              padding-left: 1rem;
+              margin: 1rem 0;
+              color: #6b7280;
+              background-color: #f3f4f6;
+              padding: 1rem;
+            }
+            .markdown-content code {
+              background-color: #f3f4f6;
+              padding: 0.2rem 0.4rem;
+              border-radius: 0.25rem;
+              font-family: 'Courier New', monospace;
+              color: #dc2626;
+            }
+            .markdown-content pre {
+              background-color: #1f2937;
+              color: #f3f4f6;
+              padding: 1rem;
+              border-radius: 0.5rem;
+              overflow-x: auto;
+              margin: 1rem 0;
+            }
+            .markdown-content table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 1rem 0;
+            }
+            .markdown-content th, .markdown-content td {
+              border: 1px solid #d1d5db;
+              padding: 0.75rem;
+              text-align: left;
+            }
+            .markdown-content th {
+              background-color: #f3f4f6;
+              font-weight: 600;
+            }
+          `}</style>
+          <ReactMarkdown>{post.content}</ReactMarkdown>
         </div>
 
         {/* Tags */}
